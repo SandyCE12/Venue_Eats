@@ -1,0 +1,361 @@
+import React, { useState } from "react";
+import { 
+  Store, 
+  X, 
+  CheckCircle2, 
+  Sparkles, 
+  ArrowRight, 
+  ChefHat, 
+  UtensilsCrossed, 
+  Phone, 
+  Mail, 
+  Building2,
+  ShieldCheck,
+  CreditCard
+} from "lucide-react";
+import { Vendor } from "../types";
+import { useApp } from "../context/AppContext";
+
+interface VendorJoinModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClose }) => {
+  const { handleAddNewVendor, setNotification } = useApp();
+
+  const [stallName, setStallName] = useState("");
+  const [cuisine, setCuisine] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [swishNumber, setSwishNumber] = useState("123 456 7890");
+  const [logoEmoji, setLogoEmoji] = useState("🌮");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("Kungsträdgården Main Lawn - Zone B");
+
+  const [submittedVendor, setSubmittedVendor] = useState<Vendor | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stallName.trim() || !cuisine.trim() || !ownerName.trim()) {
+      alert("Please fill in all required fields (Stall name, cuisine, and contact name).");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const newVendorId = `v_${Date.now()}`;
+    const generatedPin = Math.floor(1000 + Math.random() * 9000).toString();
+
+    const newVendor: Vendor = {
+      id: newVendorId,
+      name: stallName.trim(),
+      cuisine: cuisine.trim(),
+      logo: logoEmoji || "🍛",
+      rating: 5.0,
+      location: location,
+      pin: generatedPin,
+      email: email.trim() || "vendor@venueeat.se",
+      phone: phone.trim() || "+46 70 123 4567",
+      swishNumber: swishNumber.trim() || "123 456 7890",
+      isApproved: true,
+      menu: [
+        {
+          id: `${newVendorId}_m1`,
+          name: `Signature ${cuisine.trim()} Special`,
+          description: `Freshly prepared chef special dish served hot with signature herbs and spices.`,
+          price: 125,
+          category: "Food",
+          stock: true
+        },
+        {
+          id: `${newVendorId}_m2`,
+          name: `Artisanal Side & Dip`,
+          description: `Crispy side portion crafted with fresh local ingredients.`,
+          price: 55,
+          category: "Snack",
+          stock: true
+        },
+        {
+          id: `${newVendorId}_m3`,
+          name: `Refreshing Event Drink`,
+          description: `Cold infused beverage in 500ml eco-cup.`,
+          price: 35,
+          category: "Drink",
+          stock: true
+        }
+      ]
+    };
+
+    try {
+      await handleAddNewVendor(newVendor);
+      setSubmittedVendor(newVendor);
+    } catch (err) {
+      console.error("Error creating vendor:", err);
+      setNotification("Created stall in local session.");
+      setSubmittedVendor(newVendor);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const emojiOptions = ["🌮", "🍕", "🍔", "🍣", "🍜", "🍦", "🥗", "🥙", "🍩", "🍹", "☕", "🥩"];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-zinc-200 my-auto text-left relative animate-fadeIn">
+        
+        {/* Header Bar */}
+        <div className="bg-zinc-900 text-white p-5 sm:p-6 relative">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          <div className="flex items-center gap-2.5 text-orange-400 text-xs font-mono font-bold uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4 animate-pulse" />
+            <span>Partner Platform</span>
+          </div>
+
+          <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight flex items-center gap-2">
+            Join VenueEat
+          </h2>
+          <p className="text-zinc-400 text-xs mt-1 leading-relaxed">
+            Register your food stall or pop-up kitchen in under 2 minutes. Accept instant Swish payments with automated queue management.
+          </p>
+        </div>
+
+        {/* Content Body */}
+        {submittedVendor ? (
+          /* SUCCESS STATE */
+          <div className="p-6 text-center space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl shadow-sm border border-emerald-200">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <div>
+              <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold font-mono border border-emerald-200 mb-2">
+                Stall Registered & Active!
+              </span>
+              <h3 className="text-xl font-display font-black text-zinc-900">
+                Welcome, {submittedVendor.name}! {submittedVendor.logo}
+              </h3>
+              <p className="text-zinc-600 text-xs mt-1 max-w-sm mx-auto">
+                Your vendor kitchen is live on the VenueEat festival network. You can access your Kitchen Live Dashboard now.
+              </p>
+            </div>
+
+            {/* Vendor Credentials Card */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-left space-y-2">
+              <div className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wider">
+                Kitchen Login Details
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Vendor ID:</span>
+                <span className="font-mono font-bold text-zinc-900 bg-white px-2 py-1 rounded-lg border border-zinc-200">
+                  {submittedVendor.id}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Access PIN Code:</span>
+                <span className="font-mono font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200">
+                  {submittedVendor.pin}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Swish Merchant Payout:</span>
+                <span className="font-mono font-bold text-zinc-900">
+                  {submittedVendor.swishNumber}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <a
+                href="/vendor"
+                className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs py-3 px-4 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm"
+              >
+                <span>Go to Vendor Kitchen</span>
+                <ArrowRight className="w-4 h-4" />
+              </a>
+              <button
+                onClick={onClose}
+                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs py-3 px-4 rounded-xl transition-all cursor-pointer"
+              >
+                Close & Browse Menu
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* FORM STATE */
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+            
+            {/* Stall Name & Icon */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 flex items-center justify-between">
+                <span>Food Stall Name *</span>
+                <span className="text-[10px] text-zinc-400 font-normal">Displayed on event menu</span>
+              </label>
+              <div className="flex gap-2">
+                {/* Emoji Selector */}
+                <div className="relative">
+                  <select
+                    value={logoEmoji}
+                    onChange={(e) => setLogoEmoji(e.target.value)}
+                    className="h-11 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-lg appearance-none cursor-pointer text-center font-emoji focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                  >
+                    {emojiOptions.map(emoji => (
+                      <option key={emoji} value={emoji}>{emoji}</option>
+                    ))}
+                  </select>
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Stockholm Taco Truck"
+                  value={stallName}
+                  onChange={(e) => setStallName(e.target.value)}
+                  className="flex-1 h-11 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Cuisine Type */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700">
+                Cuisine / Specialty *
+              </label>
+              <div className="relative">
+                <ChefHat className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Authentic Mexican Street Food, Bao Buns, Gelato"
+                  value={cuisine}
+                  onChange={(e) => setCuisine(e.target.value)}
+                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Owner / Contact Name & Email */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700">Contact Person *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Full Name"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700">Work Email</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="email"
+                    placeholder="vendor@stall.se"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Phone & Swish Number */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700">Phone Number</label>
+                <div className="relative">
+                  <Phone className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="tel"
+                    placeholder="+46 70 000 0000"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-700">Swish Merchant Number</label>
+                <div className="relative">
+                  <CreditCard className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="text"
+                    placeholder="123 456 7890"
+                    value={swishNumber}
+                    onChange={(e) => setSwishNumber(e.target.value)}
+                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Location Zone */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700">Assigned Venue Zone</label>
+              <div className="relative">
+                <Building2 className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Platform Features Pill */}
+            <div className="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3 flex items-center gap-3 text-xs text-orange-900">
+              <ShieldCheck className="w-5 h-5 text-orange-600 shrink-0" />
+              <div className="leading-tight text-[11px]">
+                <span className="font-bold block">Instant Onboarding Benefits</span>
+                <span>Direct Swish Handel payouts, kitchen order display, and table QR code generation.</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-3 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-3 px-4 rounded-xl transition-all cursor-pointer shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 border-b-2 border-orange-600"
+              >
+                {isSubmitting ? (
+                  <span>Registering Stall...</span>
+                ) : (
+                  <>
+                    <Store className="w-4 h-4" />
+                    <span>Register My Food Stall</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
+export default VendorJoinModal;

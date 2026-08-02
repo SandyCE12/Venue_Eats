@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Path Variable Hardening (ID Poisoning Guard)
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. Entity Validators
+    function isValidVendor(data) {
+      return data.keys().hasAll(['id', 'name', 'cuisine', 'logo', 'rating', 'menu'])
+        && data.keys().size() <= 20
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.cuisine is string && data.cuisine.size() <= 100
+        && data.logo is string && data.logo.size() <= 100
+        && data.rating is number && data.rating >= 0 && data.rating <= 5
+        && data.menu is list && data.menu.size() <= 200
+        && (!('location' in data) || (data.location is string && data.location.size() <= 150))
+        && (!('pin' in data) || (data.pin is string && data.pin.size() <= 50))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('swishNumber' in data) || (data.swishNumber is string && data.swishNumber.size() <= 50))
+        && (!('stallNumber' in data) || (data.stallNumber is string && data.stallNumber.size() <= 50))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 500))
+        && (!('isApproved' in data) || (data.isApproved is bool || data.isApproved is string));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'id', 'vendorId', 'vendorName', 'items', 'status', 'timestamp', 
+          'totalAmount', 'queueNumber', 'customerName'
+        ])
+        && data.keys().size() <= 20
+        && data.id is string && data.id.size() <= 128
+        && data.vendorId is string && data.vendorId.size() <= 128
+        && data.vendorName is string && data.vendorName.size() <= 100
+        && data.items is list && data.items.size() <= 100
+        && data.status is string && data.status in ['Placed', 'Preparing', 'Ready', 'Completed']
+        && data.timestamp is string && data.timestamp.size() <= 50
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.queueNumber is number && data.queueNumber >= 0
+        && data.customerName is string && data.customerName.size() <= 100
+        && (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 50))
+        && (!('estimatedPrepTime' in data) || data.estimatedPrepTime is number)
+        && (!('estimatedPrepTimeMinutes' in data) || data.estimatedPrepTimeMinutes is number)
+        && (!('createdAt' in data) || data.createdAt is number)
+        && (!('vendorSwishShareSEK' in data) || data.vendorSwishShareSEK is number)
+        && (!('platformFeeSEK' in data) || data.platformFeeSEK is number)
+        && (!('vendorSwishPaid' in data) || data.vendorSwishPaid is number)
+        && (!('platformSwishPaid' in data) || data.platformSwishPaid is number)
+        && (!('tableNumber' in data) || (data.tableNumber is string && data.tableNumber.size() <= 50));
+    }
+
+    // Connectivity Test
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Root Vendors Collection
+    match /vendors/{vendorId} {
+      allow read, get, list: if true;
+      allow create, update: if isValidVendor(incoming());
+      allow delete: if true;
+    }
+
+    // Root Orders Collection
+    match /orders/{orderId} {
+      allow read, get, list: if true;
+      allow create, update: if isValidOrder(incoming());
+      allow delete: if true;
+    }
+
+    // User Collection Sandbox
+    match /users/{userId} {
+      function isOwner(userId) {
+        return isSignedIn() && request.auth.uid == userId;
+      }
+
+      allow read, write: if isOwner(userId);
+
+      match /{subcollection=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}

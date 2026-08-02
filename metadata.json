@@ -1,0 +1,8 @@
+{
+  "name": "Final_VenueEat",
+  "description": "An interactive business, architectural and high-fidelity prototype portal for automating and monetizing food queues at large Stockholm outdoor events.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

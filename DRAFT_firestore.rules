@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Verified Users: Standard write operations require verified email
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Path Variable Hardening (ID Poisoning Guard)
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 3. Entity Validators (The Anti-Update-Gap Schema Blueprints)
+    function isValidVendor(data) {
+      return data.keys().hasAll(['id', 'name', 'cuisine', 'logo', 'rating', 'menu'])
+        && data.keys().size() <= 12
+        && data.id is string && data.id.size() <= 128
+        && data.name is string && data.name.size() <= 100
+        && data.cuisine is string && data.cuisine.size() <= 100
+        && data.logo is string && data.logo.size() <= 10
+        && data.rating is number && data.rating >= 0 && data.rating <= 5
+        && data.menu is list && data.menu.size() <= 100
+        && (data.menu.size() == 0 || (data.menu.size() > 0 && data.menu[0] is map))
+        && (!('location' in data) || (data.location is string && data.location.size() <= 150))
+        && (!('pin' in data) || (data.pin is string && data.pin.size() <= 10))
+        && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('swishNumber' in data) || (data.swishNumber is string && data.swishNumber.size() <= 20))
+        && (!('isApproved' in data) || (data.isApproved is bool || data.isApproved is string));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'id', 'vendorId', 'vendorName', 'items', 'status', 'timestamp', 
+          'paymentMethod', 'totalAmount', 'queueNumber', 'customerName', 'estimatedPrepTime'
+        ])
+        && data.keys().size() <= 13
+        && data.id is string && data.id.size() <= 128
+        && data.vendorId is string && data.vendorId.size() <= 128
+        && data.vendorName is string && data.vendorName.size() <= 100
+        && data.items is list && data.items.size() <= 100
+        && (data.items.size() == 0 || (data.items.size() > 0 && data.items[0] is map))
+        && data.status is string && data.status in ['Placed', 'Preparing', 'Ready', 'Completed']
+        && data.timestamp is string && data.timestamp.size() <= 50
+        && data.paymentMethod is string && data.paymentMethod in ['Swish', 'Card']
+        && data.totalAmount is number && data.totalAmount >= 0
+        && data.queueNumber is number && data.queueNumber >= 0
+        && data.customerName is string && data.customerName.size() <= 100
+        && data.estimatedPrepTime is number && data.estimatedPrepTime >= 0
+        && (!('vendorSwishPaid' in data) || data.vendorSwishPaid is number)
+        && (!('platformSwishPaid' in data) || data.platformSwishPaid is number);
+    }
+
+    // Terminal State progression and chronological lock
+    function isValidStatusTransition(oldStatus, newStatus) {
+      return oldStatus == newStatus ||
+        (oldStatus == 'Placed' && (newStatus == 'Preparing' || newStatus == 'Ready' || newStatus == 'Completed')) ||
+        (oldStatus == 'Preparing' && (newStatus == 'Ready' || newStatus == 'Completed')) ||
+        (oldStatus == 'Ready' && newStatus == 'Completed');
+    }
+
+    // 4. Secure Sandbox Collection Rules
+    match /users/{userId} {
+      
+      // Check if the current user owns this sandbox
+      function isOwner(userId) {
+        return isVerifiedUser() && request.auth.uid == userId;
+      }
+
+      // Secure Vendor Sandbox
+      match /vendors/{vendorId} {
+        allow get, list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) 
+          && isValidId(vendorId) 
+          && isValidVendor(incoming());
+          
+        allow update: if isOwner(userId) 
+          && isValidId(vendorId) 
+          && isValidVendor(incoming());
+          
+        allow delete: if isOwner(userId);
+      }
+
+      // Secure Order Sandbox
+      match /orders/{orderId} {
+        allow get, list: if isOwner(userId);
+        
+        allow create: if isOwner(userId) 
+          && isValidId(orderId) 
+          && isValidOrder(incoming());
+          
+        allow update: if isOwner(userId) 
+          && isValidId(orderId) 
+          && isValidOrder(incoming())
+          && isValidStatusTransition(existing().status, incoming().status);
+          
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

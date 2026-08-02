@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "Vendor": {
+      "title": "Vendor",
+      "description": "Information about a festival food vendor, including their menu options.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the vendor"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the food vendor or truck",
+          "maxLength": 100
+        },
+        "cuisine": {
+          "type": "string",
+          "description": "Type of cuisine served",
+          "maxLength": 100
+        },
+        "logo": {
+          "type": "string",
+          "description": "Emoji or icon representing the vendor",
+          "maxLength": 10
+        },
+        "rating": {
+          "type": "number",
+          "description": "Average rating of the vendor"
+        },
+        "location": {
+          "type": "string",
+          "description": "Specific location in the event venue",
+          "maxLength": 150
+        },
+        "pin": {
+          "type": "string",
+          "description": "Security PIN for kitchen console access",
+          "maxLength": 10,
+          "pattern": "^[0-9]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Contact email of the vendor, used for secure login",
+          "maxLength": 100
+        },
+        "isApproved": {
+          "type": "boolean",
+          "description": "Approval status of the vendor. Can be true (approved), false (pending), or 'rejected'"
+        },
+        "swishNumber": {
+          "type": "string",
+          "description": "Swish phone number of the vendor",
+          "maxLength": 20
+        },
+        "menu": {
+          "type": "array",
+          "description": "List of menu items offered by this vendor"
+        }
+      },
+      "required": ["id", "name", "cuisine", "logo", "rating", "menu"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Attendee order placed at a specific vendor, tracked in real-time.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the order"
+        },
+        "vendorId": {
+          "type": "string",
+          "description": "ID of the target vendor"
+        },
+        "vendorName": {
+          "type": "string",
+          "description": "Name of the target vendor",
+          "maxLength": 100
+        },
+        "items": {
+          "type": "array",
+          "description": "List of order items including quantities and selected extras"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Placed", "Preparing", "Ready", "Completed"],
+          "description": "Current preparation state of the order"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "Time the order was placed"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["Swish", "Card"],
+          "description": "Payment gateway selected"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount paid in SEK"
+        },
+        "queueNumber": {
+          "type": "number",
+          "description": "Daily sequential ticket queue number"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Name of the attendee, optionally including table number",
+          "maxLength": 100
+        },
+        "estimatedPrepTime": {
+          "type": "number",
+          "description": "Estimated remaining preparation time in minutes"
+        },
+        "vendorSwishPaid": {
+          "type": "number",
+          "description": "Amount in SEK paid directly to the vendor"
+        },
+        "platformSwishPaid": {
+          "type": "number",
+          "description": "Amount in SEK paid to the platform as fee"
+        }
+      },
+      "required": [
+        "id",
+        "vendorId",
+        "vendorName",
+        "items",
+        "status",
+        "timestamp",
+        "paymentMethod",
+        "totalAmount",
+        "queueNumber",
+        "customerName",
+        "estimatedPrepTime"
+      ]
+    }
+  },
+  "firestore": {
+    "/vendors/{vendorId}": {
+      "schema": "Vendor",
+      "description": "Food vendors at the venue."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Attendee food orders placed at the venue."
+    }
+  }
+}
