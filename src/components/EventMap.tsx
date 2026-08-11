@@ -155,8 +155,8 @@ export default function EventMap({
                     width={16}
                     height={16}
                     rx={3}
-                    fill={isActive ? "#ffedd5" : "#ffffff"}
-                    stroke={isActive ? "#f97316" : "#cbd5e1"}
+                    fill={isActive ? "#dcfce7" : "#ffffff"}
+                    stroke={isActive ? "#16a34a" : "#cbd5e1"}
                     strokeWidth={isActive ? 1.8 : 1}
                     className="transition-all duration-300"
                   />
@@ -167,7 +167,7 @@ export default function EventMap({
                     width={16}
                     height={4}
                     rx={1}
-                    fill={isActive ? "#f97316" : "#0f172a"}
+                    fill={isActive ? "#16a34a" : "#0f172a"}
                     opacity={isActive ? 1 : 0.8}
                   />
                   {/* Stall ID Text on SVG Ground */}
@@ -177,7 +177,7 @@ export default function EventMap({
                     textAnchor="middle"
                     fontSize="3"
                     fontWeight="bold"
-                    fill={isActive ? "#9a3412" : "#475569"}
+                    fill={isActive ? "#166534" : "#475569"}
                     fontFamily="monospace"
                   >
                     {stallBadge.replace("Stall ", "")}

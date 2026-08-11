@@ -288,7 +288,7 @@ export default function SwishPaymentGateway({
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
                   <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Serviceavgift (VenueEat Split)</span>
-                  <p className="font-display font-black text-xs text-zinc-800">Service Fees</p>
+                  <p className="font-display font-black text-xs text-zinc-800">VenueEat Platform</p>
                   <p className="text-[9px] text-zinc-500 font-mono font-medium">123 456 78 90</p>
                 </div>
                 <div className="text-right">

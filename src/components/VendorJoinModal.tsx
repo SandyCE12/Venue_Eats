@@ -11,7 +11,9 @@ import {
   Mail, 
   Building2,
   ShieldCheck,
-  CreditCard
+  CreditCard,
+  Landmark,
+  Receipt
 } from "lucide-react";
 import { Vendor } from "../types";
 import { useApp } from "../context/AppContext";
@@ -30,8 +32,12 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [swishNumber, setSwishNumber] = useState("123 456 7890");
+  const [bankName, setBankName] = useState("SEB (Skandinaviska Enskilda Banken)");
+  const [bankAccount, setBankAccount] = useState("1234 56 78901");
+  const [clearingNumber, setClearingNumber] = useState("8327");
+  const [orgNumber, setOrgNumber] = useState("556987-1234");
+  const [payoutMethod, setPayoutMethod] = useState<"Swish" | "Bank" | "Both">("Both");
   const [logoEmoji, setLogoEmoji] = useState("🌮");
-  const [description, setDescription] = useState("");
   const [location, setLocation] = useState("Kungsträdgården Main Lawn - Zone B");
 
   const [submittedVendor, setSubmittedVendor] = useState<Vendor | null>(null);
@@ -62,6 +68,11 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
       email: email.trim() || "vendor@venueeat.se",
       phone: phone.trim() || "+46 70 123 4567",
       swishNumber: swishNumber.trim() || "123 456 7890",
+      bankName: bankName.trim() || "SEB Bank",
+      bankAccount: bankAccount.trim() || "1234 56 78901",
+      clearingNumber: clearingNumber.trim() || "8327",
+      orgNumber: orgNumber.trim() || "556987-1234",
+      payoutMethod: payoutMethod,
       isApproved: true,
       menu: [
         {
@@ -152,9 +163,9 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
             </div>
 
             {/* Vendor Credentials Card */}
-            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-left space-y-2">
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-left space-y-2.5">
               <div className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                Kitchen Login Details
+                Kitchen Login & Payout Summary
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-zinc-600">Vendor ID:</span>
@@ -168,10 +179,28 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
                   {submittedVendor.pin}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-xs">
+              <div className="flex justify-between items-center text-xs border-t border-zinc-200/60 pt-2">
                 <span className="text-zinc-600">Swish Merchant Payout:</span>
                 <span className="font-mono font-bold text-zinc-900">
-                  {submittedVendor.swishNumber}
+                  {submittedVendor.swishNumber || "Configured"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Card Payout Bank:</span>
+                <span className="font-mono font-bold text-zinc-900">
+                  {submittedVendor.bankName || "SEB Bank"}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Bank Account / Clearing:</span>
+                <span className="font-mono font-bold text-zinc-900">
+                  {submittedVendor.clearingNumber ? `${submittedVendor.clearingNumber} - ` : ''}{submittedVendor.bankAccount}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-zinc-600">Org / Tax ID:</span>
+                <span className="font-mono font-bold text-zinc-900">
+                  {submittedVendor.orgNumber}
                 </span>
               </div>
             </div>
@@ -272,14 +301,15 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
               </div>
             </div>
 
-            {/* Phone & Swish Number */}
+            {/* Contact Phone & Location Zone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-700">Phone Number</label>
+                <label className="text-xs font-bold text-zinc-700">Phone Number *</label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
                   <input
                     type="tel"
+                    required
                     placeholder="+46 70 000 0000"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -289,31 +319,127 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-700">Swish Merchant Number</label>
+                <label className="text-xs font-bold text-zinc-700">Assigned Venue Zone</label>
                 <div className="relative">
-                  <CreditCard className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                  <Building2 className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
                   <input
                     type="text"
-                    placeholder="123 456 7890"
-                    value={swishNumber}
-                    onChange={(e) => setSwishNumber(e.target.value)}
-                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all font-mono"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Location Zone */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700">Assigned Venue Zone</label>
-              <div className="relative">
-                <Building2 className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
-                />
+            {/* FINANCIAL PAYOUT & BANK ACCOUNT DETAILS (FOR CARD & SWISH PAYMENTS) */}
+            <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 text-white rounded-2xl p-4.5 space-y-4 border border-zinc-800 shadow-md">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center border border-orange-500/30">
+                    <Landmark className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-display font-black text-xs text-white uppercase tracking-wide">
+                      Revenue Payout & Bank Account
+                    </h4>
+                    <p className="text-[10px] text-zinc-400">
+                      Required for payouts when customers pay by Card, Apple Pay, or Swish.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[9px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2 py-0.5 rounded-full uppercase">
+                  Payout Setup
+                </span>
+              </div>
+
+              {/* Org Number & Swish Number */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold text-zinc-300 uppercase flex items-center gap-1">
+                    <Receipt className="w-3 h-3 text-orange-400" />
+                    Org. Number (Org.nr / Tax ID) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 556987-1234"
+                    value={orgNumber}
+                    onChange={(e) => setOrgNumber(e.target.value)}
+                    className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-xs font-mono font-bold text-amber-200 focus:bg-zinc-900 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-mono font-bold text-zinc-300 uppercase flex items-center gap-1">
+                    <CreditCard className="w-3 h-3 text-sky-400" />
+                    Swish Handel Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 123 456 7890"
+                    value={swishNumber}
+                    onChange={(e) => setSwishNumber(e.target.value)}
+                    className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-xs font-mono font-bold text-sky-300 focus:bg-zinc-900 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Bank Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-bold text-zinc-300 uppercase flex items-center gap-1">
+                  <Landmark className="w-3 h-3 text-emerald-400" />
+                  Bank Name (for Card Payment Payouts) *
+                </label>
+                <select
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-xs font-bold text-white focus:bg-zinc-900 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all cursor-pointer"
+                >
+                  <option value="SEB (Skandinaviska Enskilda Banken)">SEB (Skandinaviska Enskilda Banken)</option>
+                  <option value="Swedbank">Swedbank</option>
+                  <option value="Handelsbanken">Handelsbanken</option>
+                  <option value="Nordea">Nordea</option>
+                  <option value="Danske Bank">Danske Bank</option>
+                  <option value="Länsförsäkringar Bank">Länsförsäkringar Bank</option>
+                  <option value="SBAB / Other Swedish Bank">Other Swedish / International Bank</option>
+                </select>
+              </div>
+
+              {/* Clearing & Account Number / IBAN */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="text-[10px] font-mono font-bold text-zinc-300 uppercase">Clearing No.</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 8327"
+                    value={clearingNumber}
+                    onChange={(e) => setClearingNumber(e.target.value)}
+                    className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-xs font-mono font-bold text-emerald-300 focus:bg-zinc-900 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] font-mono font-bold text-zinc-300 uppercase">Account Number / IBAN *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 123 456 78901 or SE89 5000 0000 0580"
+                    value={bankAccount}
+                    onChange={(e) => setBankAccount(e.target.value)}
+                    className="w-full h-10 px-3 bg-zinc-800/80 border border-zinc-700 rounded-xl text-xs font-mono font-bold text-emerald-300 focus:bg-zinc-900 focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Info Note on Card Settlement */}
+              <div className="bg-zinc-800/90 border border-zinc-700/80 rounded-xl p-2.5 flex items-start gap-2 text-[10.5px] text-zinc-300">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <p className="leading-snug">
+                  <strong className="text-white block font-display">Card & Mobile Payout Guarantee:</strong>
+                  Revenue from customers paying with Visa, Mastercard, or Apple Pay is pooled and paid out directly to this bank account with automated daily/end-of-event settlement statements.
+                </p>
               </div>
             </div>
 

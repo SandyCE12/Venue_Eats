@@ -23,7 +23,7 @@ interface AdminSalesChartsProps {
 }
 
 const VENDOR_COLORS = [
-  "#F97316", // orange-500 (Delhi Sensation)
+  "#16A34A", // green-600 (Delhi Sensation)
   "#F59E0B", // amber-500 (Bombay Cutting)
   "#10B981", // emerald-500 (Kerala Coastal)
   "#EC4899", // pink-500 (Jaipur Palace)
