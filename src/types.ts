@@ -29,6 +29,11 @@ export interface Vendor {
   phone?: string;
   isApproved?: boolean | "rejected" | string;
   swishNumber?: string;
+  bankName?: string;
+  bankAccount?: string;
+  clearingNumber?: string;
+  orgNumber?: string;
+  payoutMethod?: "Swish" | "Bank" | "Both";
 }
 
 export interface OrderItem {

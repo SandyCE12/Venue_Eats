@@ -21,19 +21,12 @@ import {
   ArrowLeft,
   Store
 } from "lucide-react";
-import { MenuItem, Vendor, ExtraOption } from "../types";
+import { MenuItem, Vendor } from "../types";
 import SwishPaymentGateway from "../components/SwishPaymentGateway";
 import OrderStatusTracker from "../components/OrderStatusTracker";
 import EventMap from "../components/EventMap";
 import SupportChat from "../components/SupportChat";
 import VendorJoinModal from "../components/VendorJoinModal";
-
-export interface CartEntry {
-  id: string;
-  menuItem: MenuItem;
-  quantity: number;
-  selectedExtras: ExtraOption[];
-}
 
 export const AttendeePage: React.FC = () => {
   const {
@@ -66,111 +59,41 @@ export const AttendeePage: React.FC = () => {
   // Customization overlay state
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [selectedExtrasForCustomizing, setSelectedExtrasForCustomizing] = useState<string[]>([]);
-  const [customizingQty, setCustomizingQty] = useState<number>(1);
-
-  // Cart entries state supporting customized extras
-  const [cartEntries, setCartEntries] = useState<CartEntry[]>([]);
 
   const activeVendor = vendors.find(v => v.id === activeVendorId) || vendors[0];
 
-  // Helper to add item directly without customization
-  const handleAddItemDirect = (item: MenuItem) => {
-    setCartEntries(prev => {
-      const existingIdx = prev.findIndex(
-        entry => entry.menuItem.id === item.id && entry.selectedExtras.length === 0
-      );
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          quantity: updated[existingIdx].quantity + 1
-        };
-        return updated;
-      } else {
-        return [
-          ...prev,
-          {
-            id: `${item.id}_plain_${Date.now()}`,
-            menuItem: item,
-            quantity: 1,
-            selectedExtras: []
-          }
-        ];
-      }
-    });
-    addToCart(item.id, 1);
-  };
-
-  const handleIncreaseCartEntry = (entryId: string) => {
-    setCartEntries(prev =>
-      prev.map(entry => {
-        if (entry.id === entryId) {
-          addToCart(entry.menuItem.id, 1);
-          return { ...entry, quantity: entry.quantity + 1 };
-        }
-        return entry;
-      })
-    );
-  };
-
-  const handleDecreaseCartEntry = (entryId: string) => {
-    setCartEntries(prev => {
-      const target = prev.find(e => e.id === entryId);
-      if (!target) return prev;
-      removeFromCart(target.menuItem.id);
-      if (target.quantity > 1) {
-        return prev.map(e => e.id === entryId ? { ...e, quantity: e.quantity - 1 } : e);
-      } else {
-        return prev.filter(e => e.id !== entryId);
-      }
-    });
-  };
-
-  const handleDecreaseItemByMenuItemId = (menuItemId: string) => {
-    setCartEntries(prev => {
-      const indexToRemove = prev.findLastIndex(e => e.menuItem.id === menuItemId);
-      if (indexToRemove < 0) return prev;
-      const target = prev[indexToRemove];
-      removeFromCart(target.menuItem.id);
-      if (target.quantity > 1) {
-        const updated = [...prev];
-        updated[indexToRemove] = { ...target, quantity: target.quantity - 1 };
-        return updated;
-      } else {
-        return prev.filter((_, idx) => idx !== indexToRemove);
-      }
-    });
-  };
-
-  const getItemTotalQtyInCart = (menuItemId: string): number => {
-    return cartEntries
-      .filter(entry => entry.menuItem.id === menuItemId)
-      .reduce((sum, entry) => sum + entry.quantity, 0);
-  };
-
+  // Cart helper calculations
   const getCartItemsList = () => {
-    return cartEntries.map(entry => ({
-      menuItem: entry.menuItem,
-      quantity: entry.quantity,
-      selectedExtras: entry.selectedExtras
-    }));
+    const list: Array<{ menuItem: MenuItem; quantity: number; selectedExtras?: any[] }> = [];
+    if (!activeVendor) return list;
+
+    Object.keys(customerCart).forEach(itemId => {
+      const qty = customerCart[itemId];
+      if (qty > 0) {
+        // Find item across vendor menus
+        for (const v of vendors) {
+          const found = v.menu.find(m => m.id === itemId);
+          if (found) {
+            list.push({ menuItem: found, quantity: qty });
+            break;
+          }
+        }
+      }
+    });
+    return list;
   };
 
   const getCartTotal = (): number => {
-    return cartEntries.reduce((sum, entry) => {
-      const extrasCost = entry.selectedExtras.reduce((eSum, extra) => eSum + Number(extra.price || 0), 0);
-      return sum + ((Number(entry.menuItem.price) + extrasCost) * Number(entry.quantity));
-    }, 0);
+    return getCartItemsList().reduce((sum: number, item) => sum + (Number(item.menuItem.price) * Number(item.quantity)), 0);
   };
 
   const getCartItemCount = (): number => {
-    return cartEntries.reduce((sum, entry) => sum + Number(entry.quantity), 0);
+    return (Object.values(customerCart) as number[]).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
   };
 
   const openCustomizer = (item: MenuItem) => {
     setCustomizingItem(item);
     setSelectedExtrasForCustomizing([]);
-    setCustomizingQty(1);
   };
 
   const handleToggleExtra = (extraId: string) => {
@@ -179,47 +102,9 @@ export const AttendeePage: React.FC = () => {
     );
   };
 
-  const calculateCustomizingTotal = (): number => {
-    if (!customizingItem) return 0;
-    const extrasCost = (customizingItem.extras || [])
-      .filter(e => selectedExtrasForCustomizing.includes(e.id))
-      .reduce((sum, e) => sum + e.price, 0);
-    return (customizingItem.price + extrasCost) * customizingQty;
-  };
-
   const handleConfirmCustomization = () => {
     if (!customizingItem) return;
-
-    const chosenExtras = (customizingItem.extras || []).filter(e =>
-      selectedExtrasForCustomizing.includes(e.id)
-    );
-
-    const extrasKey = chosenExtras.map(e => e.id).sort().join("_");
-    const entryId = extrasKey ? `${customizingItem.id}_ext_${extrasKey}` : `${customizingItem.id}_plain_${Date.now()}`;
-
-    setCartEntries(prev => {
-      const existingIdx = prev.findIndex(e => e.id === entryId);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          quantity: updated[existingIdx].quantity + customizingQty
-        };
-        return updated;
-      } else {
-        return [
-          ...prev,
-          {
-            id: entryId,
-            menuItem: customizingItem,
-            quantity: customizingQty,
-            selectedExtras: chosenExtras
-          }
-        ];
-      }
-    });
-
-    addToCart(customizingItem.id, customizingQty);
+    addToCart(customizingItem.id, 1);
     setCustomizingItem(null);
   };
 
@@ -423,23 +308,23 @@ export const AttendeePage: React.FC = () => {
         <div className="space-y-8 text-left">
 
           {/* VENDOR RECRUITMENT POP-IN BANNER */}
-          <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 rounded-3xl p-5 sm:p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-zinc-800 shadow-xl relative overflow-hidden">
-            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-40 h-40 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 rounded-2xl p-3.5 sm:p-4 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-zinc-800 shadow-md relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
             
-            <div className="flex items-center gap-4 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0 shadow-inner">
-                <Store className="w-6 h-6" />
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0 shadow-inner">
+                <Store className="w-4 h-4" />
               </div>
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
-                  <h4 className="font-display font-black text-base sm:text-lg text-white">
+                  <h4 className="font-display font-bold text-xs sm:text-sm text-white">
                     Are you a Food Vendor or Restaurant?
                   </h4>
-                  <span className="bg-orange-500 text-white text-[9px] font-mono font-black px-2 py-0.5 rounded-full uppercase tracking-wider hidden sm:inline-block">
+                  <span className="bg-orange-500 text-white text-[8px] font-mono font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider hidden sm:inline-block">
                     Join Platform
                   </span>
                 </div>
-                <p className="text-zinc-400 text-xs leading-relaxed max-w-xl">
+                <p className="text-zinc-400 text-[11px] leading-tight max-w-xl">
                   Register your food stall on VenueEat to accept instant Swish mobile orders, automate your kitchen queue, and boost event sales.
                 </p>
               </div>
@@ -447,9 +332,9 @@ export const AttendeePage: React.FC = () => {
 
             <button
               onClick={() => setShowVendorJoinModal(true)}
-              className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-display font-black text-xs px-5 py-3 rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 shrink-0 border-b-2 border-orange-600 relative z-10"
+              className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-display font-bold text-xs px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-orange-500/20 shrink-0 border-b-2 border-orange-600 relative z-10"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Register Your Stall Now</span>
             </button>
           </div>
@@ -555,7 +440,7 @@ export const AttendeePage: React.FC = () => {
               {/* Dish Items Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredMenuItems.map(item => {
-                  const itemQtyInCart = getItemTotalQtyInCart(item.id);
+                  const itemQtyInCart = customerCart[item.id] || 0;
                   return (
                     <div key={item.id} className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex flex-col justify-between space-y-4 hover:border-zinc-300 transition-all">
                       <div className="space-y-2">
@@ -572,40 +457,29 @@ export const AttendeePage: React.FC = () => {
                       </div>
 
                       {/* Add to Cart Controls */}
-                      <div className="flex items-center justify-between pt-2 border-t border-zinc-200/60 gap-2">
-                        <div className="flex items-center gap-2">
-                          {itemQtyInCart > 0 ? (
-                            <div className="flex items-center gap-2 bg-white border border-zinc-300 rounded-xl p-1">
-                              <button
-                                onClick={() => handleDecreaseItemByMenuItemId(item.id)}
-                                className="p-1 hover:bg-zinc-100 rounded-lg text-zinc-700 cursor-pointer"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <span className="font-mono font-black text-xs px-2">{itemQtyInCart}</span>
-                              <button
-                                onClick={() => handleAddItemDirect(item)}
-                                className="p-1 hover:bg-zinc-100 rounded-lg text-zinc-700 cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
+                      <div className="flex items-center justify-between pt-2 border-t border-zinc-200/60">
+                        {itemQtyInCart > 0 ? (
+                          <div className="flex items-center gap-2 bg-white border border-zinc-300 rounded-xl p-1">
                             <button
-                              onClick={() => handleAddItemDirect(item)}
-                              className="bg-zinc-900 hover:bg-zinc-800 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
+                              onClick={() => removeFromCart(item.id)}
+                              className="p-1 hover:bg-zinc-100 rounded-lg text-zinc-700 cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5" /> Add to Order
+                              <Minus className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                        </div>
-
-                        {item.extras && item.extras.length > 0 && (
+                            <span className="font-mono font-black text-xs px-2">{itemQtyInCart}</span>
+                            <button
+                              onClick={() => addToCart(item.id, 1)}
+                              className="p-1 hover:bg-zinc-100 rounded-lg text-zinc-700 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
                           <button
-                            onClick={() => openCustomizer(item)}
-                            className="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 active:scale-95 text-xs font-bold px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 shadow-xs shrink-0"
+                            onClick={() => addToCart(item.id, 1)}
+                            className="bg-zinc-900 hover:bg-zinc-800 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs"
                           >
-                            <Sparkles className="w-3.5 h-3.5 text-orange-500" /> Customize
+                            <Plus className="w-3.5 h-3.5" /> Add to Order
                           </button>
                         )}
                       </div>
@@ -618,208 +492,81 @@ export const AttendeePage: React.FC = () => {
         </div>
       )}
 
-      {/* CUSTOMIZATION MODAL DIALOG */}
-      {customizingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[90vh]">
-            
-            {/* Header */}
-            <div className="p-5 border-b border-zinc-150 flex justify-between items-start bg-zinc-50">
-              <div className="flex items-center gap-3">
-                {customizingItem.imageUrl && (
-                  <img src={customizingItem.imageUrl} alt={customizingItem.name} className="w-14 h-14 object-cover rounded-xl border border-zinc-200 shrink-0" />
-                )}
-                <div>
-                  <span className="text-[10px] font-mono font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded-md uppercase">
-                    {customizingItem.category}
-                  </span>
-                  <h3 className="font-display font-black text-lg text-zinc-900 leading-tight mt-0.5">
-                    {customizingItem.name}
-                  </h3>
-                  <p className="text-xs font-mono font-bold text-zinc-600 mt-0.5">
-                    Base Price: {customizingItem.price} SEK
-                  </p>
-                </div>
+      {/* CART DRAWER SLIDE-OVER */}
+      {showCartDrawer && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 flex flex-col overflow-y-auto text-left space-y-6">
+            <div className="flex justify-between items-center border-b border-zinc-200 pb-4">
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-orange-500" />
+                <h3 className="font-display font-black text-lg text-zinc-900">Your Cart</h3>
               </div>
-              <button
-                onClick={() => setCustomizingItem(null)}
-                className="text-zinc-400 hover:text-zinc-900 p-1.5 rounded-xl hover:bg-zinc-200/60 transition-all cursor-pointer"
-              >
+              <button onClick={() => setShowCartDrawer(false)} className="text-zinc-400 hover:text-zinc-900 p-1 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Body */}
-            <div className="p-5 space-y-5 overflow-y-auto flex-1 text-left">
-              <p className="text-xs text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-xl border border-zinc-150">
-                {customizingItem.description}
-              </p>
-
-              {customizingItem.extras && customizingItem.extras.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-display font-black text-sm text-zinc-900 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-orange-500" />
-                      Select Extras & Add-ons
-                    </h4>
-                    <span className="text-[11px] text-zinc-400 font-medium">Optional</span>
+            {/* Cart Items List */}
+            {getCartItemsList().length === 0 ? (
+              <p className="text-xs text-zinc-500 italic text-center py-12">Your cart is empty. Add delicious street food items above!</p>
+            ) : (
+              <div className="space-y-3">
+                {getCartItemsList().map((item, idx) => (
+                  <div key={idx} className="p-3 bg-zinc-50 rounded-2xl border border-zinc-200 flex justify-between items-center gap-3">
+                    <div>
+                      <h4 className="font-display font-black text-xs text-zinc-900">{item.menuItem.name}</h4>
+                      <span className="font-mono text-xs text-zinc-600 font-bold">{item.menuItem.price} SEK each</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-xl p-1">
+                      <button onClick={() => removeFromCart(item.menuItem.id)} className="p-1 hover:bg-zinc-100 rounded-lg cursor-pointer">
+                        <Minus className="w-3 h-3 text-zinc-600" />
+                      </button>
+                      <span className="font-mono font-black text-xs px-1">{item.quantity}</span>
+                      <button onClick={() => addToCart(item.menuItem.id, 1)} className="p-1 hover:bg-zinc-100 rounded-lg cursor-pointer">
+                        <Plus className="w-3 h-3 text-zinc-600" />
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="space-y-2">
-                    {customizingItem.extras.map((extra) => {
-                      const isSelected = selectedExtrasForCustomizing.includes(extra.id);
-                      return (
-                        <button
-                          key={extra.id}
-                          type="button"
-                          onClick={() => handleToggleExtra(extra.id)}
-                          className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-orange-50/80 border-orange-500 text-orange-950 font-medium shadow-xs"
-                              : "bg-white border-zinc-200 text-zinc-800 hover:border-zinc-300"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
-                              isSelected ? "bg-orange-500 border-orange-500 text-white" : "border-zinc-300 bg-white"
-                            }`}>
-                              {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                            </div>
-                            <span className="text-xs font-bold">{extra.name}</span>
-                          </div>
-                          <span className="font-mono text-xs font-bold text-orange-600">
-                            +{extra.price} SEK
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs text-zinc-500 italic">No additional extras available for this item.</p>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-5 border-t border-zinc-150 bg-zinc-50 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-zinc-700">Quantity</span>
-                <div className="flex items-center gap-3 bg-white border border-zinc-200 rounded-2xl p-1.5 shadow-2xs">
-                  <button
-                    type="button"
-                    onClick={() => setCustomizingQty(q => Math.max(1, q - 1))}
-                    className="p-1.5 hover:bg-zinc-100 rounded-xl text-zinc-700 cursor-pointer transition-all disabled:opacity-40"
-                    disabled={customizingQty <= 1}
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                  <span className="font-mono font-black text-sm px-2 min-w-[20px] text-center">{customizingQty}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCustomizingQty(q => q + 1)}
-                    className="p-1.5 hover:bg-zinc-100 rounded-xl text-zinc-700 cursor-pointer transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleConfirmCustomization}
-                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-3.5 rounded-2xl transition-all shadow-md shadow-orange-500/20 cursor-pointer flex items-center justify-between px-5"
-              >
-                <span>Add to Order</span>
-                <span className="font-mono font-black bg-white/20 px-2.5 py-1 rounded-xl text-xs">
-                  {calculateCustomizingTotal()} SEK
-                </span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* CART DRAWER SLIDE-OVER */}
-      {showCartDrawer && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs animate-fadeIn">
-          <div className="w-full max-w-md bg-white h-full shadow-2xl p-6 flex flex-col justify-between overflow-y-auto text-left">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center border-b border-zinc-200 pb-4">
-                <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-orange-500" />
-                  <h3 className="font-display font-black text-lg text-zinc-900">Your Cart</h3>
-                </div>
-                <button onClick={() => setShowCartDrawer(false)} className="text-zinc-400 hover:text-zinc-900 p-1 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Cart Items List */}
-              {cartEntries.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic text-center py-12">Your cart is empty. Add delicious street food items above!</p>
-              ) : (
-                <div className="space-y-3">
-                  {cartEntries.map((entry) => {
-                    const extrasCost = entry.selectedExtras.reduce((sum, e) => sum + e.price, 0);
-                    const unitTotal = entry.menuItem.price + extrasCost;
-                    return (
-                      <div key={entry.id} className="p-3.5 bg-zinc-50 rounded-2xl border border-zinc-200 flex justify-between items-center gap-3">
-                        <div className="space-y-1">
-                          <h4 className="font-display font-black text-xs text-zinc-900">{entry.menuItem.name}</h4>
-                          {entry.selectedExtras.length > 0 && (
-                            <p className="text-[11px] text-orange-700 font-medium">
-                              + {entry.selectedExtras.map(e => e.name).join(", ")}
-                            </p>
-                          )}
-                          <span className="font-mono text-xs text-zinc-600 font-bold block">{unitTotal} SEK each</span>
-                        </div>
-                        <div className="flex items-center gap-2 bg-white border border-zinc-200 rounded-xl p-1 shrink-0">
-                          <button onClick={() => handleDecreaseCartEntry(entry.id)} className="p-1 hover:bg-zinc-100 rounded-lg cursor-pointer">
-                            <Minus className="w-3 h-3 text-zinc-600" />
-                          </button>
-                          <span className="font-mono font-black text-xs px-1">{entry.quantity}</span>
-                          <button onClick={() => handleIncreaseCartEntry(entry.id)} className="p-1 hover:bg-zinc-100 rounded-lg cursor-pointer">
-                            <Plus className="w-3 h-3 text-zinc-600" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Cart Footer */}
-            {getCartItemsList().length > 0 && (
-              <div className="space-y-4 pt-4 border-t border-zinc-200">
-                <div className="space-y-2 font-mono text-xs">
-                  <div className="flex justify-between text-zinc-600 font-medium">
-                    <span>Subtotal</span>
-                    <span>{getCartTotal()} SEK</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-600 font-medium">
-                    <span>Platform Service Fee</span>
-                    <span>0 SEK (Free)</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-950 font-black text-base pt-2 border-t border-zinc-200">
-                    <span>Total SEK</span>
-                    <span>{getCartTotal()} SEK</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setShowCartDrawer(false);
-                    setShowSwishFlow(true);
-                  }}
-                  className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-3.5 rounded-2xl transition-all shadow-md shadow-orange-500/20 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <span>Checkout with Swish</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                ))}
               </div>
             )}
+
+            {/* Cart Footer */}
+            {getCartItemsList().length > 0 && (() => {
+              const subtotal = getCartTotal();
+              const serviceFee = Math.round(subtotal * 0.035 * 100) / 100;
+              const grandTotal = Math.round((subtotal + serviceFee) * 100) / 100;
+
+              return (
+                <div className="space-y-4 pt-4 border-t border-zinc-200">
+                  <div className="space-y-2 font-mono text-xs">
+                    <div className="flex justify-between text-zinc-600 font-medium">
+                      <span>Subtotal</span>
+                      <span>{subtotal} SEK</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-600 font-medium">
+                      <span>Service Fee</span>
+                      <span>{serviceFee} SEK</span>
+                    </div>
+                    <div className="flex justify-between text-zinc-950 font-black text-base pt-2 border-t border-zinc-200">
+                      <span>Total SEK</span>
+                      <span>{grandTotal} SEK</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setShowCartDrawer(false);
+                      setShowSwishFlow(true);
+                    }}
+                    className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-3.5 rounded-2xl transition-all shadow-md shadow-orange-500/20 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Checkout with Swish</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -835,7 +582,6 @@ export const AttendeePage: React.FC = () => {
         onCustomerNameChange={setCustomerName}
         onPaymentSuccess={async (custName, vendorName, total, method) => {
           await confirmSwishPayment(custName, activeVendor, total, getCartItemsList(), method);
-          setCartEntries([]);
           setShowSwishFlow(false);
           setActiveTab("tracker");
         }}
