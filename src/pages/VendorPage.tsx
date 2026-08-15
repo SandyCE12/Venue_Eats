@@ -220,7 +220,11 @@ export const VendorPage: React.FC = () => {
 
                   <div className="border-t border-zinc-800 pt-3 flex justify-between items-center text-xs">
                     <span className="font-mono text-zinc-400 font-bold">Total SEK</span>
-                    <span className="font-mono font-black text-emerald-400 text-base">{o.totalAmount} SEK</span>
+                    <span className="font-mono font-black text-emerald-400 text-base">
+                      {o.items && o.items.length > 0
+                        ? o.items.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
+                        : o.totalAmount} SEK
+                    </span>
                   </div>
 
                   {/* Status Progression Action Buttons */}
