@@ -40,6 +40,8 @@ interface AppContextType {
   activeTable: string | null;
   currentOrder: Order | null;
   activeEventId: string;
+  /** The event the attendee has selected from the event selector screen (localStorage-backed). */
+  selectedUserEventId: string | null;
   loggedInVendorId: string | null;
   loggedInAdminId: string | null;
   isSuperAdminAuthenticated: boolean;
@@ -56,6 +58,8 @@ interface AppContextType {
   setActiveTable: (table: string | null) => void;
   setCurrentOrder: (order: Order | null) => void;
   setActiveEventId: (id: string) => void;
+  /** Persists to localStorage. Pass null to clear (returns user to event selector). */
+  setSelectedUserEventId: (id: string | null) => void;
   setLoggedInVendorId: (id: string | null) => void;
   setLoggedInAdminId: (id: string | null) => void;
   setIsSuperAdminAuthenticated: (val: boolean) => void;
@@ -116,7 +120,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>(MANAGED_EVENTS);
   const [activeEventId, setActiveEventId] = useState<string>("evt-001");
+  const [selectedUserEventId, _setSelectedUserEventId] = useState<string | null>(() => {
+    return localStorage.getItem("venueeat_selected_event_id") || null;
+  });
   const [notification, setNotification] = useState<string | null>(null);
+
+  const setSelectedUserEventId = (id: string | null) => {
+    _setSelectedUserEventId(id);
+    if (id) {
+      localStorage.setItem("venueeat_selected_event_id", id);
+    } else {
+      localStorage.removeItem("venueeat_selected_event_id");
+    }
+  };
   const [eventMapUrl, setEventMapUrl] = useState<string | undefined>(() => {
     return localStorage.getItem("venueeat_event_map_url") || undefined;
   });
@@ -304,8 +320,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ? `${finalCustName} (Table ${activeTable})`
       : finalCustName;
 
-    const vendorSwishPaid = cartTotal * 0.965; // 96.5% direct vendor share
-    const platformSwishPaid = cartTotal * 0.035; // 3.5% venueeat platform fee
+    const calculatedItemsTotal = itemsInCart && itemsInCart.length > 0
+      ? itemsInCart.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
+      : cartTotal;
+    const actualOrderTotal = calculatedItemsTotal > 0 ? calculatedItemsTotal : cartTotal;
+
+    const vendorSwishPaid = actualOrderTotal * 0.965; // 96.5% direct vendor share
+    const platformSwishPaid = actualOrderTotal * 0.035; // 3.5% venueeat platform fee
 
     const newOrderObj: Order = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
@@ -314,7 +335,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       vendorName: activeVendorObj.name,
       customerName: displayNameWithTable,
       items: itemsInCart,
-      totalAmount: cartTotal,
+      totalAmount: actualOrderTotal,
       vendorSwishShareSEK: vendorSwishPaid,
       platformFeeSEK: platformSwishPaid,
       status: "Placed",
@@ -458,6 +479,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         activeTable,
         currentOrder,
         activeEventId,
+        selectedUserEventId,
         loggedInVendorId,
         loggedInAdminId,
         isSuperAdminAuthenticated,
@@ -473,6 +495,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setActiveTable,
         setCurrentOrder,
         setActiveEventId,
+        setSelectedUserEventId,
         setLoggedInVendorId,
         setLoggedInAdminId,
         setIsSuperAdminAuthenticated,

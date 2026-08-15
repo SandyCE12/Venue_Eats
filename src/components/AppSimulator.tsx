@@ -1051,7 +1051,7 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
       status: "Placed",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       paymentMethod: (paymentMethodUsed as any) || "Swish",
-      totalAmount: getCartTotal() + platformSwishPaid,
+      totalAmount: getCartTotal(),
       queueNumber: newQueueNumber,
       customerName: displayNameWithTable,
       estimatedPrepTime: estimateVendorWaitTime(activeVendorId).minutes,
@@ -3330,7 +3330,11 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
                           </div>
                           <div className="border-t border-zinc-800 pt-2 flex justify-between items-center text-xs">
                             <span className="text-zinc-400 font-medium">Customer: {o.customerName || "Guest"}</span>
-                            <span className="font-mono font-black text-emerald-400">{o.totalAmount} SEK</span>
+                            <span className="font-mono font-black text-emerald-400">
+                              {o.items && o.items.length > 0
+                                ? o.items.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
+                                : o.totalAmount} SEK
+                            </span>
                           </div>
                         </div>
                       ))}

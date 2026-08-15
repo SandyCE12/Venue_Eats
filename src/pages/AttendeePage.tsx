@@ -19,7 +19,9 @@ import {
   X,
   ChevronRight,
   ArrowLeft,
-  Store
+  Store,
+  CalendarCheck,
+  LogOut
 } from "lucide-react";
 import { MenuItem, Vendor } from "../types";
 import SwishPaymentGateway from "../components/SwishPaymentGateway";
@@ -27,11 +29,13 @@ import OrderStatusTracker from "../components/OrderStatusTracker";
 import EventMap from "../components/EventMap";
 import SupportChat from "../components/SupportChat";
 import VendorJoinModal from "../components/VendorJoinModal";
+import { EventSelectorScreen } from "../components/EventSelectorScreen";
 
 export const AttendeePage: React.FC = () => {
   const {
     vendors,
     orders,
+    managedEvents,
     activeVendorId,
     setActiveVendorId,
     customerCart,
@@ -46,9 +50,12 @@ export const AttendeePage: React.FC = () => {
     estimateVendorWaitTime,
     user,
     handleSignIn,
-    eventMapUrl
+    eventMapUrl,
+    selectedUserEventId,
+    setSelectedUserEventId,
   } = useApp();
 
+  // All hooks must come before any conditional returns (Rules of Hooks)
   const [activeTab, setActiveTab] = useState<"menu" | "tracker" | "history" | "map" | "support">("menu");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -59,6 +66,14 @@ export const AttendeePage: React.FC = () => {
   // Customization overlay state
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [selectedExtrasForCustomizing, setSelectedExtrasForCustomizing] = useState<string[]>([]);
+
+  // ── Gate: show event selector if no event chosen (after all hooks) ───
+  if (!selectedUserEventId) {
+    return <EventSelectorScreen />;
+  }
+
+  // Derive the selected event object for the badge
+  const selectedEvent = managedEvents.find(e => e.id === selectedUserEventId) ?? null;
 
   const activeVendor = vendors.find(v => v.id === activeVendorId) || vendors[0];
 
@@ -208,6 +223,33 @@ export const AttendeePage: React.FC = () => {
           )}
         </button>
       </div>
+
+      {/* ── ACTIVE EVENT CONTEXT BADGE ────────────────────────── */}
+      {selectedEvent && (
+        <div className="flex items-center justify-between bg-zinc-900 text-white rounded-2xl px-4 py-2.5 -mt-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="shrink-0 w-7 h-7 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+              <CalendarCheck className="w-3.5 h-3.5 text-orange-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Currently attending</div>
+              <div className="font-black text-xs text-white truncate">{selectedEvent.name}</div>
+            </div>
+            <div className="flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedUserEventId(null)}
+            className="ml-4 flex items-center gap-1.5 text-[11px] font-bold text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer shrink-0"
+            title="Leave event and return to event selector"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:block">Leave Event</span>
+          </button>
+        </div>
+      )}
 
       {/* RENDER CONTENT BASED ON ACTIVE TAB */}
       {activeTab === "tracker" ? (
@@ -580,8 +622,9 @@ export const AttendeePage: React.FC = () => {
         vendorSwishNumber={activeVendor?.swishNumber || "123 918 27 36"}
         customerName={customerName}
         onCustomerNameChange={setCustomerName}
-        onPaymentSuccess={async (custName, vendorName, total, method) => {
-          await confirmSwishPayment(custName, activeVendor, total, getCartItemsList(), method);
+        onPaymentSuccess={async (custName, _vendorShare, _platformFee, method) => {
+          const actualCartTotal = getCartTotal();
+          await confirmSwishPayment(custName, activeVendor, actualCartTotal, getCartItemsList(), method);
           setShowSwishFlow(false);
           setActiveTab("tracker");
         }}
