@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Fingerprint, 
@@ -69,6 +70,17 @@ export default function SwishPaymentGateway({
   const platformFee = Math.round(amount * 0.035 * 100) / 100;
   const vendorShare = Math.round(amount * 100) / 100;
   const totalAmount = Math.round((amount + platformFee) * 100) / 100;
+
+  // Lock body scroll when payment gateway is open
+  useEffect(() => {
+    if (isOpen) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [isOpen]);
 
   // Reset state when opened
   useEffect(() => {
@@ -188,8 +200,16 @@ export default function SwishPaymentGateway({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-md z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-y-auto" id="swish-gateway-container">
+  return createPortal(
+    <div 
+      className="fixed inset-0 bg-zinc-950/80 backdrop-blur-md z-[9999] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-y-auto" 
+      id="swish-gateway-container"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <AnimatePresence mode="wait">
         
         {/* STEP 1: SELECT PAYMENT METHOD & ENTER DETAILS */}
@@ -288,7 +308,7 @@ export default function SwishPaymentGateway({
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
                   <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Serviceavgift (VenueEat Split)</span>
-                  <p className="font-display font-black text-xs text-zinc-800">VenueEat Platform</p>
+                  <p className="font-display font-black text-xs text-zinc-800">Service Fees</p>
                   <p className="text-[9px] text-zinc-500 font-mono font-medium">123 456 78 90</p>
                 </div>
                 <div className="text-right">
@@ -807,6 +827,7 @@ export default function SwishPaymentGateway({
         )}
 
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body
   );
 }

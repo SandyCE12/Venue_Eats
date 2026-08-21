@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { DEFAULT_VENDORS, MANAGED_EVENTS } from "../data";
-import { Vendor, MenuItem, Order, OrderStatus, ManagedEvent, EventStatus } from "../types";
+import { Vendor, MenuItem, Order, OrderStatus, ManagedEvent, EventStatus, CartEntry } from "../types";
 import { 
   db, 
   auth, 
@@ -40,15 +40,23 @@ interface AppContextType {
   activeTable: string | null;
   currentOrder: Order | null;
   activeEventId: string;
-  /** The event the attendee has selected from the event selector screen (localStorage-backed). */
-  selectedUserEventId: string | null;
   loggedInVendorId: string | null;
   loggedInAdminId: string | null;
   isSuperAdminAuthenticated: boolean;
   notification: string | null;
   eventMapUrl?: string;
+  attendeeTab: "menu" | "orders" | "map" | "support";
+  ordersSubTab: "live" | "history";
+  selectedVendorStallId: string | null;
+  showCartDrawer: boolean;
+  cartEntries: CartEntry[];
   
   // Setters & Actions
+  setAttendeeTab: React.Dispatch<React.SetStateAction<"menu" | "orders" | "map" | "support">>;
+  setOrdersSubTab: React.Dispatch<React.SetStateAction<"live" | "history">>;
+  setSelectedVendorStallId: React.Dispatch<React.SetStateAction<string | null>>;
+  setShowCartDrawer: React.Dispatch<React.SetStateAction<boolean>>;
+  setCartEntries: React.Dispatch<React.SetStateAction<CartEntry[]>>;
   setActiveVendorId: (id: string) => void;
   setCustomerCart: React.Dispatch<React.SetStateAction<{ [itemId: string]: number }>>;
   addToCart: (itemId: string, qty?: number) => void;
@@ -58,8 +66,6 @@ interface AppContextType {
   setActiveTable: (table: string | null) => void;
   setCurrentOrder: (order: Order | null) => void;
   setActiveEventId: (id: string) => void;
-  /** Persists to localStorage. Pass null to clear (returns user to event selector). */
-  setSelectedUserEventId: (id: string | null) => void;
   setLoggedInVendorId: (id: string | null) => void;
   setLoggedInAdminId: (id: string | null) => void;
   setIsSuperAdminAuthenticated: (val: boolean) => void;
@@ -84,6 +90,9 @@ interface AppContextType {
   handleUpdateEventStatus: (eventId: string, newStatus: EventStatus) => void;
   handleAddNewEvent: (newEvent: ManagedEvent) => void;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
+  /** The event the attendee has chosen from the selector screen (localStorage-backed). null = show selector. */
+  selectedUserEventId: string | null;
+  setSelectedUserEventId: (id: string | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -119,16 +128,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [activeTable, setActiveTable] = useState<string | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>(MANAGED_EVENTS);
-  const [activeEventId, setActiveEventId] = useState<string>("evt-001");
   const [selectedUserEventId, _setSelectedUserEventId] = useState<string | null>(() => {
     return localStorage.getItem("venueeat_selected_event_id") || null;
   });
+  const [activeEventId, setActiveEventId] = useState<string>(() => {
+    return localStorage.getItem("venueeat_selected_event_id") || "evt-001";
+  });
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Attendee event selection — persisted in localStorage so push notifications can reference it later
   const setSelectedUserEventId = (id: string | null) => {
     _setSelectedUserEventId(id);
     if (id) {
       localStorage.setItem("venueeat_selected_event_id", id);
+      setActiveEventId(id);
     } else {
       localStorage.removeItem("venueeat_selected_event_id");
     }
@@ -136,6 +149,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [eventMapUrl, setEventMapUrl] = useState<string | undefined>(() => {
     return localStorage.getItem("venueeat_event_map_url") || undefined;
   });
+  
+  // Attendee navigation and cart drawer global states
+  const [attendeeTab, setAttendeeTab] = useState<"menu" | "orders" | "map" | "support">("menu");
+  const [ordersSubTab, setOrdersSubTab] = useState<"live" | "history">("live");
+  const [selectedVendorStallId, setSelectedVendorStallId] = useState<string | null>(null);
+  const [showCartDrawer, setShowCartDrawer] = useState<boolean>(false);
+  const [cartEntries, setCartEntries] = useState<CartEntry[]>([]);
 
   const handleUpdateEventMapUrl = (url: string | undefined) => {
     setEventMapUrl(url);
@@ -219,10 +239,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       (snapshot) => {
         if (!snapshot.empty) {
           const loadedVendors: Vendor[] = [];
+          const loadedVendorIds = new Set<string>();
           snapshot.forEach((docSnap) => {
-            loadedVendors.push({ id: docSnap.id, ...docSnap.data() } as Vendor);
+            const vData = { id: docSnap.id, ...docSnap.data() } as Vendor;
+            loadedVendors.push(vData);
+            loadedVendorIds.add(docSnap.id);
           });
-          setVendors(loadedVendors);
+
+          // Automatically seed any new default demo vendors not yet stored in Firestore
+          DEFAULT_VENDORS.forEach(async (v) => {
+            if (!loadedVendorIds.has(v.id)) {
+              try {
+                await setDoc(doc(db, "vendors", v.id), cleanUndefined(v));
+              } catch (err) {
+                console.warn("Could not seed default vendor:", v.id, err);
+              }
+            }
+          });
+
+          // Merge any unseeded default vendors into local state for immediate responsiveness
+          const mergedVendors = [...loadedVendors];
+          DEFAULT_VENDORS.forEach((dv) => {
+            if (!loadedVendorIds.has(dv.id)) {
+              mergedVendors.push(dv);
+            }
+          });
+          setVendors(mergedVendors);
         } else {
           // Initialize default vendors if collection is empty
           DEFAULT_VENDORS.forEach(async (v) => {
@@ -232,6 +274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               console.warn("Could not seed default vendor:", err);
             }
           });
+          setVendors(DEFAULT_VENDORS);
         }
       },
       (error) => handleFirestoreError(error, OperationType.GET, vendorsPath)
@@ -242,10 +285,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       collection(db, ordersPath),
       (snapshot) => {
         const loadedOrders: Order[] = [];
+        const seenOrderIds = new Set<string>();
+
         snapshot.forEach((docSnap) => {
-          loadedOrders.push({ id: docSnap.id, ...docSnap.data() } as Order);
+          if (!seenOrderIds.has(docSnap.id)) {
+            seenOrderIds.add(docSnap.id);
+            loadedOrders.push({ id: docSnap.id, ...docSnap.data() } as Order);
+          }
         });
-        loadedOrders.sort((a, b) => b.createdAt - a.createdAt);
+
+        loadedOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         setOrders(loadedOrders);
 
         // Keep currentOrder in sync if tracked
@@ -320,13 +369,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ? `${finalCustName} (Table ${activeTable})`
       : finalCustName;
 
-    const calculatedItemsTotal = itemsInCart && itemsInCart.length > 0
-      ? itemsInCart.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
-      : cartTotal;
-    const actualOrderTotal = calculatedItemsTotal > 0 ? calculatedItemsTotal : cartTotal;
-
-    const vendorSwishPaid = actualOrderTotal * 0.965; // 96.5% direct vendor share
-    const platformSwishPaid = actualOrderTotal * 0.035; // 3.5% venueeat platform fee
+    const vendorSwishPaid = cartTotal * 0.965; // 96.5% direct vendor share
+    const platformSwishPaid = cartTotal * 0.035; // 3.5% venueeat platform fee
 
     const newOrderObj: Order = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
@@ -335,7 +379,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       vendorName: activeVendorObj.name,
       customerName: displayNameWithTable,
       items: itemsInCart,
-      totalAmount: actualOrderTotal,
+      totalAmount: cartTotal,
       vendorSwishShareSEK: vendorSwishPaid,
       platformFeeSEK: platformSwishPaid,
       status: "Placed",
@@ -350,7 +394,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.warn("Firestore order create error:", err);
     }
 
-    setOrders(prev => [newOrderObj, ...prev]);
+    setOrders(prev => [newOrderObj, ...prev.filter(o => o.id !== newOrderObj.id)]);
     setCurrentOrder(newOrderObj);
     clearCart();
     setNotification(`Order #${newQueueNumber} placed successfully via ${paymentMethodUsed}!`);
@@ -479,13 +523,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         activeTable,
         currentOrder,
         activeEventId,
-        selectedUserEventId,
         loggedInVendorId,
         loggedInAdminId,
         isSuperAdminAuthenticated,
         notification,
         eventMapUrl,
+        attendeeTab,
+        ordersSubTab,
+        selectedVendorStallId,
+        showCartDrawer,
+        cartEntries,
         
+        setAttendeeTab,
+        setOrdersSubTab,
+        setSelectedVendorStallId,
+        setShowCartDrawer,
+        setCartEntries,
         setActiveVendorId,
         setCustomerCart,
         addToCart,
@@ -495,7 +548,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setActiveTable,
         setCurrentOrder,
         setActiveEventId,
-        setSelectedUserEventId,
         setLoggedInVendorId,
         setLoggedInAdminId,
         setIsSuperAdminAuthenticated,
@@ -513,7 +565,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleAddNewVendor,
         handleUpdateEventStatus,
         handleAddNewEvent,
-        estimateVendorWaitTime
+        estimateVendorWaitTime,
+        selectedUserEventId,
+        setSelectedUserEventId
       }}
     >
       {children}
