@@ -29,17 +29,19 @@ export interface Vendor {
   phone?: string;
   isApproved?: boolean | "rejected" | string;
   swishNumber?: string;
-  bankName?: string;
-  bankAccount?: string;
-  clearingNumber?: string;
-  orgNumber?: string;
-  payoutMethod?: "Swish" | "Bank" | "Both";
 }
 
 export interface OrderItem {
   menuItem: MenuItem;
   quantity: number;
   selectedExtras?: ExtraOption[];
+}
+
+export interface CartEntry {
+  id: string;
+  menuItem: MenuItem;
+  quantity: number;
+  selectedExtras: ExtraOption[];
 }
 
 export type OrderStatus = "Placed" | "Preparing" | "Ready" | "Completed";

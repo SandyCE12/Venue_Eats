@@ -230,9 +230,7 @@ export const AdminPage: React.FC = () => {
                   </div>
 
                   <div className="text-xs font-mono space-y-1 text-zinc-600 border-t border-zinc-200 pt-3">
-                    <p>Swish Merchant: <span className="text-zinc-900 font-bold">{v.swishNumber || "123 456 7890"}</span></p>
-                    <p>Bank Payout: <span className="text-zinc-900 font-bold">{v.bankName || "SEB Bank"} ({v.clearingNumber ? `${v.clearingNumber}-` : ''}{v.bankAccount || "1234 56 78901"})</span></p>
-                    <p>Org.nr / Tax ID: <span className="text-zinc-900 font-bold">{v.orgNumber || "556987-1234"}</span></p>
+                    <p>Swish Merchant: <span className="text-zinc-900 font-bold">{v.swishNumber}</span></p>
                     <p>Contact Email: <span className="text-zinc-900 font-bold">{v.email}</span></p>
                   </div>
 

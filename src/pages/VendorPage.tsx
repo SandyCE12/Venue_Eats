@@ -67,29 +67,13 @@ export const VendorPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-          {/* Stall Switcher Dropdown */}
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-2">
-            <Store className="w-4 h-4 text-orange-400 shrink-0" />
-            <select
-              value={loggedInVendorId || ""}
-              onChange={(e) => setLoggedInVendorId(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-2"
-            >
-              {vendors.map(v => (
-                <option key={v.id} value={v.id} className="bg-zinc-900 text-white">
-                  {v.logo} {v.name} ({orders.filter(o => o.vendorId === v.id && o.status !== "Completed").length} pending)
-                </option>
-              ))}
-            </select>
-          </div>
-
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setLoggedInVendorId(null)}
-            className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-zinc-800 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-zinc-800 transition-all cursor-pointer flex items-center gap-1.5"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
+            <span>Sign Out Kitchen</span>
           </button>
         </div>
       </div>
@@ -220,11 +204,7 @@ export const VendorPage: React.FC = () => {
 
                   <div className="border-t border-zinc-800 pt-3 flex justify-between items-center text-xs">
                     <span className="font-mono text-zinc-400 font-bold">Total SEK</span>
-                    <span className="font-mono font-black text-emerald-400 text-base">
-                      {o.items && o.items.length > 0
-                        ? o.items.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
-                        : o.totalAmount} SEK
-                    </span>
+                    <span className="font-mono font-black text-emerald-400 text-base">{o.totalAmount} SEK</span>
                   </div>
 
                   {/* Status Progression Action Buttons */}

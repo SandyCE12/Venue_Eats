@@ -226,14 +226,14 @@ export default function VendorAnalytics({ vendor, orders }: VendorAnalyticsProps
               <defs>
                 {/* Gradient Fill for Area Chart */}
                 <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#16a34a" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#16a34a" stopOpacity="0.0" />
+                  <stop offset="0%" stopColor="#f97316" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
                 </linearGradient>
                 {/* Stroke Gradient */}
                 <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#22c55e" />
-                  <stop offset="50%" stopColor="#16a34a" />
-                  <stop offset="100%" stopColor="#15803d" />
+                  <stop offset="0%" stopColor="#eab308" />
+                  <stop offset="50%" stopColor="#f97316" />
+                  <stop offset="100%" stopColor="#ef4444" />
                 </linearGradient>
               </defs>
 
@@ -300,7 +300,7 @@ export default function VendorAnalytics({ vendor, orders }: VendorAnalyticsProps
                         y1={paddingTop} 
                         x2={p.x} 
                         y2={height - paddingBottom} 
-                        stroke="#16a34a" 
+                        stroke="#f97316" 
                         strokeWidth="1" 
                         opacity="0.6"
                       />
@@ -311,8 +311,8 @@ export default function VendorAnalytics({ vendor, orders }: VendorAnalyticsProps
                       cx={p.x} 
                       cy={p.y} 
                       r={isHovered ? 5.5 : 3.5} 
-                      fill={isHovered ? "#16a34a" : "#18181b"} 
-                      stroke={isHovered ? "#fff" : "#16a34a"} 
+                      fill={isHovered ? "#f97316" : "#18181b"} 
+                      stroke={isHovered ? "#fff" : "#f97316"} 
                       strokeWidth={isHovered ? 2.5 : 2} 
                       className="cursor-pointer transition-all duration-200"
                       onMouseEnter={() => setHoveredHour(p.hour)}
@@ -353,7 +353,7 @@ export default function VendorAnalytics({ vendor, orders }: VendorAnalyticsProps
                     key={index} 
                     x={p.x} 
                     y={height - paddingBottom + 14} 
-                    fill={hoveredHour === p.hour ? "#16a34a" : "#52525b"} 
+                    fill={hoveredHour === p.hour ? "#f97316" : "#52525b"} 
                     fontSize="8" 
                     textAnchor="middle" 
                     fontFamily="monospace"

@@ -152,35 +152,6 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
             </button>
           </form>
 
-          {/* Quick Demo Vendor Accounts */}
-          {portalRole === "vendor" && vendors.length > 0 && (
-            <div className="space-y-2.5 pt-2 border-t border-zinc-150">
-              <label className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider block">
-                Quick Select Food Stall Terminal:
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {vendors.map(v => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => onSuccess(v.id)}
-                    className="p-2.5 rounded-xl border border-zinc-200 hover:border-orange-500 hover:bg-orange-50/50 bg-zinc-50 text-left transition-all cursor-pointer flex items-center gap-2.5 group"
-                  >
-                    <span className="text-xl group-hover:scale-110 transition-transform">{v.logo}</span>
-                    <div className="overflow-hidden">
-                      <div className="font-display font-black text-xs text-zinc-900 truncate group-hover:text-orange-600">
-                        {v.name}
-                      </div>
-                      <div className="text-[10px] font-mono text-zinc-500 truncate">
-                        {v.email || `${v.id}@venueeat.se`}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-200" /></div>
             <div className="relative flex justify-center text-[10px] uppercase font-mono font-bold"><span className="bg-white px-2 text-zinc-400">Or continue with</span></div>

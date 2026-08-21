@@ -13,10 +13,6 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
   const [location, setLocation] = useState(vendor.location || "");
   const [stallNumber, setStallNumber] = useState(vendor.stallNumber || "");
   const [swishNumber, setSwishNumber] = useState(vendor.swishNumber || "");
-  const [bankName, setBankName] = useState(vendor.bankName || "SEB (Skandinaviska Enskilda Banken)");
-  const [bankAccount, setBankAccount] = useState(vendor.bankAccount || "1234 56 78901");
-  const [clearingNumber, setClearingNumber] = useState(vendor.clearingNumber || "8327");
-  const [orgNumber, setOrgNumber] = useState(vendor.orgNumber || "556987-1234");
   const [pin, setPin] = useState(vendor.pin || "");
   const [email, setEmail] = useState(vendor.email || "");
   const [logo, setLogo] = useState(vendor.logo || "🍛");
@@ -31,10 +27,6 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
     setLocation(vendor.location || "");
     setStallNumber(vendor.stallNumber || "");
     setSwishNumber(vendor.swishNumber || "");
-    setBankName(vendor.bankName || "SEB (Skandinaviska Enskilda Banken)");
-    setBankAccount(vendor.bankAccount || "1234 56 78901");
-    setClearingNumber(vendor.clearingNumber || "8327");
-    setOrgNumber(vendor.orgNumber || "556987-1234");
     setPin(vendor.pin || "");
     setEmail(vendor.email || "");
     setLogo(vendor.logo || "🍛");
@@ -68,10 +60,6 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
         location: location.trim(),
         stallNumber: stallNumber.trim(),
         swishNumber: swishNumber.trim(),
-        bankName: bankName.trim(),
-        bankAccount: bankAccount.trim(),
-        clearingNumber: clearingNumber.trim(),
-        orgNumber: orgNumber.trim(),
         pin: pin.trim(),
         email: email.trim().toLowerCase(),
         logo
@@ -103,90 +91,28 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Swish & Card Revenue Payout Section - Highlighted & Crucial */}
-        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-4">
-          <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2.5">
-            <div className="flex items-center gap-2 text-emerald-400">
-              <Phone className="w-4 h-4" />
-              <h3 className="text-xs font-black uppercase tracking-wider">Financial Settlement & Revenue Payouts</h3>
-            </div>
-            <span className="text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-              Swish & Card Direct Payouts
-            </span>
+        {/* Swish Payout Section - Highlighted & Crucial */}
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <Phone className="w-4 h-4" />
+            <h3 className="text-xs font-black uppercase tracking-wider">Swish Handel Integration</h3>
           </div>
-
           <p className="text-[10.5px] text-zinc-300 leading-relaxed font-medium">
-            Customers can pay for orders using <strong>Swish, Credit/Debit Card, or Apple Pay</strong>. Swish orders transfer instantly to your Swish Merchant ID, while Card payments settle directly to your registered bank account.
+            This Swish phone number is used for <strong>real-time, split payouts</strong>. When customers pay via Swish, Stockholm organizers route funds directly to the account tied to this Swish number, minus the commission fee.
           </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider font-mono block">
-                Swish Merchant Number
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., 123 456 78 90"
-                value={swishNumber}
-                onChange={(e) => setSwishNumber(e.target.value)}
-                className="w-full bg-zinc-950 border-2 border-zinc-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-300 font-bold tracking-wider focus:outline-none transition-all"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider font-mono block">
-                Org. Number (Org.nr)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g., 556987-1234"
-                value={orgNumber}
-                onChange={(e) => setOrgNumber(e.target.value)}
-                className="w-full bg-zinc-950 border-2 border-zinc-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-amber-200 font-bold tracking-wider focus:outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5 sm:col-span-1">
-              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
-                Bank Name
-              </label>
-              <input
-                type="text"
-                placeholder="SEB, Swedbank, Nordea..."
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold focus:outline-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:col-span-1">
-              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
-                Clearing No.
-              </label>
-              <input
-                type="text"
-                placeholder="8327"
-                value={clearingNumber}
-                onChange={(e) => setClearingNumber(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-300 font-bold focus:outline-none"
-              />
-            </div>
-
-            <div className="space-y-1.5 sm:col-span-1">
-              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
-                Bank Account / IBAN
-              </label>
-              <input
-                type="text"
-                placeholder="123 456 78901"
-                value={bankAccount}
-                onChange={(e) => setBankAccount(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-emerald-300 font-bold focus:outline-none"
-              />
-            </div>
+          
+          <div className="space-y-1.5 pt-1">
+            <label className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider font-mono block">
+              Active Swish Payout Number
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., 123 456 78 90"
+              value={swishNumber}
+              onChange={(e) => setSwishNumber(e.target.value)}
+              className="w-full bg-zinc-950 border-2 border-zinc-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm font-mono text-emerald-300 font-black tracking-widest focus:outline-none transition-all"
+              required
+            />
           </div>
         </div>
 

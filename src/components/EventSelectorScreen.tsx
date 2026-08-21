@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   MapPin,
   Calendar,
   Store,
   Users,
-  Zap,
   ArrowRight,
   Music,
   UtensilsCrossed,
@@ -12,341 +11,328 @@ import {
   Flame,
   Star,
   Clock,
+  Sparkles,
+  Search,
+  CheckCircle2,
+  ShieldCheck,
+  Zap,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { ManagedEvent } from "../types";
 
-/* ─── Category config ─────────────────────────────────── */
-const CATEGORY_CONFIG: Record<
-  string,
-  {
-    gradient: string;
-    accentColor: string;
-    badgeBg: string;
-    badgeText: string;
-    icon: React.ReactNode;
-  }
-> = {
-  "Cultural & Food": {
-    gradient: "from-emerald-500 via-teal-500 to-green-600",
-    accentColor: "#16a34a",
-    badgeBg: "bg-emerald-50 border-emerald-200",
-    badgeText: "text-emerald-800",
-    icon: <UtensilsCrossed className="w-3.5 h-3.5" />,
-  },
-  "Music Festival": {
-    gradient: "from-violet-500 via-purple-500 to-fuchsia-600",
-    accentColor: "#7c3aed",
-    badgeBg: "bg-purple-50 border-purple-200",
-    badgeText: "text-purple-800",
-    icon: <Music className="w-3.5 h-3.5" />,
-  },
-  "Street Market": {
-    gradient: "from-teal-500 via-emerald-500 to-cyan-600",
-    accentColor: "#0d9488",
-    badgeBg: "bg-teal-50 border-teal-200",
-    badgeText: "text-teal-800",
-    icon: <ShoppingBag className="w-3.5 h-3.5" />,
-  },
-  Exhibition: {
-    gradient: "from-sky-500 via-blue-500 to-indigo-600",
-    accentColor: "#0284c7",
-    badgeBg: "bg-sky-50 border-sky-200",
-    badgeText: "text-sky-800",
-    icon: <Star className="w-3.5 h-3.5" />,
-  },
-  "Sports & Fair": {
-    gradient: "from-amber-500 via-orange-500 to-rose-600",
-    accentColor: "#ea580c",
-    badgeBg: "bg-amber-50 border-amber-200",
-    badgeText: "text-amber-800",
-    icon: <Flame className="w-3.5 h-3.5" />,
-  },
+/* ─── High-res themed imagery per event / category ───────── */
+const EVENT_IMAGES: Record<string, string> = {
+  NSF2026:
+    "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=1000&auto=format&fit=crop&q=80",
+  "evt-001":
+    "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=1000&auto=format&fit=crop&q=80",
+  TASTE2026:
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80",
+  "evt-002":
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80",
+  LOLL2026:
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1000&auto=format&fit=crop&q=80",
+  "evt-003":
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1000&auto=format&fit=crop&q=80",
 };
 
-const DEFAULT_CATEGORY = CATEGORY_CONFIG["Cultural & Food"];
+const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
+  "Cultural & Food":
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80",
+  "Music Festival":
+    "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?w=1000&auto=format&fit=crop&q=80",
+  "Street Market":
+    "https://images.unsplash.com/photo-1509722747041-616f39b57569?w=1000&auto=format&fit=crop&q=80",
+  Exhibition:
+    "https://images.unsplash.com/photo-1511578314322-379afb476865?w=1000&auto=format&fit=crop&q=80",
+  "Sports & Fair":
+    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=1000&auto=format&fit=crop&q=80",
+};
 
-function getCategoryConfig(category: string) {
-  return CATEGORY_CONFIG[category] ?? DEFAULT_CATEGORY;
+function getEventImage(event: ManagedEvent): string {
+  return (
+    EVENT_IMAGES[event.code] ||
+    EVENT_IMAGES[event.id] ||
+    CATEGORY_FALLBACK_IMAGES[event.category] ||
+    "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=1000&auto=format&fit=crop&q=80"
+  );
 }
 
-/* ─── Single Event Card ────────────────────────────────── */
-interface EventCardProps {
+function getCategoryIcon(category: string) {
+  switch (category) {
+    case "Cultural & Food":
+      return <UtensilsCrossed className="w-3.5 h-3.5" />;
+    case "Music Festival":
+      return <Music className="w-3.5 h-3.5" />;
+    case "Street Market":
+      return <ShoppingBag className="w-3.5 h-3.5" />;
+    case "Sports & Fair":
+      return <Flame className="w-3.5 h-3.5" />;
+    default:
+      return <Star className="w-3.5 h-3.5" />;
+  }
+}
+
+/* ─── Compact Premium Event Card ───────────────────────── */
+const EventCard: React.FC<{
   event: ManagedEvent;
   index: number;
   onSelect: (id: string) => void;
-}
+}> = ({ event, index, onSelect }) => {
+  const imageUrl = getEventImage(event);
 
-const EventCard: React.FC<EventCardProps> = ({ event, index, onSelect }) => {
-  const [visible, setVisible] = useState(false);
-  const cfg = getCategoryConfig(event.category);
-
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 60 + index * 90);
-    return () => clearTimeout(t);
-  }, [index]);
-
-  const formattedDate = (() => {
-    const d = new Date(event.startDate);
-    return d.toLocaleDateString("en-SE", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  })();
+  const formattedDate = new Date(event.startDate).toLocaleDateString("en-SE", {
+    month: "short",
+    day: "numeric",
+  });
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(event.id)}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? "translateY(0)" : "translateY(20px)",
-        transition: `opacity 0.4s ease ${index * 0.06}s, transform 0.4s cubic-bezier(0.16,1,0.3,1) ${index * 0.06}s`,
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(event.id);
+        }
       }}
-      className="group relative flex flex-col h-full bg-white rounded-3xl border border-zinc-200/90 shadow-sm hover:shadow-xl hover:shadow-emerald-950/15 hover:border-emerald-500/40 transition-all duration-300 overflow-hidden cursor-pointer text-left"
+      className="group relative bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-orange-500/60 shadow-md hover:shadow-2xl hover:shadow-orange-950/20 transition-all duration-200 flex flex-col overflow-hidden cursor-pointer text-left select-none transform hover:-translate-y-0.5"
     >
-      {/* Top accent bar */}
-      <div className={`h-1.5 w-full bg-gradient-to-r ${cfg.gradient}`} />
+      {/* Compact Header Image Banner */}
+      <div className="relative h-28 sm:h-32 w-full overflow-hidden bg-zinc-950 shrink-0">
+        <img
+          src={imageUrl}
+          alt={event.name}
+          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+        />
 
-      {/* Main card content area */}
-      <div className="flex-1 flex flex-col justify-between p-6 pb-4">
-        <div>
-          {/* Top meta tags: Category badge + Live indicator */}
-          <div className="flex items-center justify-between gap-2 mb-3.5">
-            <div
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold uppercase tracking-wider ${cfg.badgeBg} ${cfg.badgeText}`}
-            >
-              {cfg.icon}
-              <span>{event.category}</span>
-            </div>
+        {/* Subtle Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/30 to-transparent" />
 
-            <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>LIVE</span>
-            </div>
+        {/* Top Badges */}
+        <div className="absolute top-2 inset-x-2.5 flex items-center justify-between gap-1.5 pointer-events-none">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-black/70 backdrop-blur-md text-white border border-white/20">
+            {getCategoryIcon(event.category)}
+            <span>{event.category}</span>
+          </span>
+
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500 text-white shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            Live
+          </span>
+        </div>
+
+        {/* Location & Date bottom tag over image */}
+        <div className="absolute bottom-2 inset-x-2.5 flex items-center justify-between text-white text-[11px] font-medium pointer-events-none">
+          <div className="flex items-center gap-1 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/15 max-w-[65%] truncate">
+            <MapPin className="w-3 h-3 text-orange-400 shrink-0" />
+            <span className="truncate">{event.location.split(",")[0]}</span>
           </div>
 
-          {/* Event Name */}
-          <h3 className="font-display font-black text-xl text-zinc-900 leading-snug tracking-tight group-hover:text-emerald-700 transition-colors line-clamp-2 min-h-[3.25rem] flex items-center">
+          <div className="flex items-center gap-1 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/15 font-mono text-[10px]">
+            <Calendar className="w-2.5 h-2.5 text-zinc-300" />
+            <span>{formattedDate}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Content */}
+      <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between space-y-3">
+        <div className="space-y-1">
+          {/* Title - clearly visible in bold high-contrast white text */}
+          <h3 className="font-display font-black text-base sm:text-lg text-white group-hover:text-orange-400 transition-colors leading-snug line-clamp-2">
             {event.name}
           </h3>
 
-          {/* Location */}
-          <div className="flex items-center gap-1.5 text-zinc-500 text-xs mt-1.5 font-medium">
-            <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span className="truncate">{event.location}</span>
-          </div>
+          {/* Description */}
+          <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+            {event.description}
+          </p>
         </div>
 
-        {/* Stats Grid - 3 equal columns */}
-        <div className="mt-5 pt-4 border-t border-zinc-100 grid grid-cols-3 gap-2.5">
-          <div className="bg-zinc-50/80 rounded-2xl p-2.5 text-center border border-zinc-100/80 flex flex-col justify-center items-center">
-            <div className="flex items-center justify-center text-zinc-400 mb-1">
-              <Store className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <div className="font-mono font-black text-sm text-zinc-900 leading-tight">
+        {/* Compact Stats Row */}
+        <div className="grid grid-cols-3 gap-1.5 py-1.5 px-2 bg-zinc-950/80 rounded-xl border border-zinc-800 text-center">
+          <div>
+            <div className="font-black text-xs sm:text-sm text-white leading-none">
               {event.activeVendorsCount}
             </div>
-            <div className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5 uppercase tracking-wider">
+            <div className="text-[9px] font-mono text-zinc-400 mt-1 uppercase tracking-wider">
               Stalls
             </div>
           </div>
 
-          <div className="bg-zinc-50/80 rounded-2xl p-2.5 text-center border border-zinc-100/80 flex flex-col justify-center items-center">
-            <div className="flex items-center justify-center text-zinc-400 mb-1">
-              <Users className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="border-x border-zinc-800">
+            <div className="font-black text-xs sm:text-sm text-zinc-200 leading-none">
+              ~{event.averagePrepTimeMin || 6}m
             </div>
-            <div className="font-mono font-black text-sm text-zinc-900 leading-tight">
-              {event.attendeesCount >= 1000
-                ? `${(event.attendeesCount / 1000).toFixed(0)}k`
-                : event.attendeesCount}
-            </div>
-            <div className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5 uppercase tracking-wider">
-              Attendees
+            <div className="text-[9px] font-mono text-zinc-400 mt-1 uppercase tracking-wider">
+              Wait
             </div>
           </div>
 
-          <div className="bg-zinc-50/80 rounded-2xl p-2.5 text-center border border-zinc-100/80 flex flex-col justify-center items-center">
-            <div className="flex items-center justify-center text-zinc-400 mb-1">
-              <Clock className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="flex flex-col items-center justify-center">
+            <div className="font-black text-xs sm:text-sm text-amber-400 leading-none flex items-center justify-center gap-0.5">
+              <Star className="w-3 h-3 fill-amber-400 stroke-amber-500" />
+              <span>{event.satisfactionRating?.toFixed(1) || "4.9"}</span>
             </div>
-            <div className="font-mono font-black text-sm text-zinc-900 leading-tight">
-              ~{event.averagePrepTimeMin ?? 6}m
-            </div>
-            <div className="text-[9px] font-mono font-bold text-zinc-400 mt-0.5 uppercase tracking-wider">
-              Avg Wait
+            <div className="text-[9px] font-mono text-zinc-400 mt-1 uppercase tracking-wider">
+              Rating
             </div>
           </div>
         </div>
 
-        {/* Date */}
-        <div className="mt-3.5 flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
-          <Calendar className="w-3.5 h-3.5 text-zinc-400" />
-          <span>{formattedDate}</span>
-        </div>
-      </div>
-
-      {/* Button section pinned to the bottom of the card */}
-      <div className="p-6 pt-0 mt-auto">
+        {/* Primary Enter Action Button */}
         <button
           type="button"
-          className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-display font-black text-sm py-3.5 px-4 rounded-2xl transition-all shadow-md shadow-emerald-600/20 group-hover:shadow-lg group-hover:shadow-emerald-600/30 cursor-pointer flex items-center justify-center gap-2 border-b-2 border-emerald-700"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(event.id);
+          }}
+          className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl font-bold text-xs text-white bg-zinc-800 border border-zinc-700/80 group-hover:bg-orange-600 group-hover:border-transparent active:scale-[0.98] transition-all duration-150 cursor-pointer shadow-xs group-hover:shadow-orange-500/20"
         >
-          <Zap className="w-4 h-4" />
-          <span>Enter Event</span>
-          <ArrowRight className="w-4 h-4 ml-auto group-hover:translate-x-1 transition-transform" />
+          <Zap className="w-3.5 h-3.5 text-orange-400 group-hover:text-white transition-colors" />
+          <span>Enter Festival</span>
+          <ArrowRight className="w-3.5 h-3.5 ml-auto transform group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
     </div>
   );
 };
 
-/* ─── Main Screen ──────────────────────────────────────── */
+/* ─── Main Event Selector Portal ──────────────────────── */
 export const EventSelectorScreen: React.FC = () => {
   const { managedEvents, setSelectedUserEventId } = useApp();
-  const [headerVisible, setHeaderVisible] = useState(false);
+  const [searchFilter, setSearchFilter] = useState("");
 
-  const liveEvents = managedEvents.filter((e) => e.status === "Live");
+  // Only show Live events to attendees
+  const liveEvents = useMemo(() => {
+    return managedEvents.filter((e) => e.status === "Live");
+  }, [managedEvents]);
 
-  useEffect(() => {
-    const t = setTimeout(() => setHeaderVisible(true), 40);
-    return () => clearTimeout(t);
-  }, []);
+  const filteredEvents = useMemo(() => {
+    if (!searchFilter.trim()) return liveEvents;
+    const q = searchFilter.toLowerCase();
+    return liveEvents.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.location.toLowerCase().includes(q) ||
+        e.category.toLowerCase().includes(q)
+    );
+  }, [liveEvents, searchFilter]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 relative overflow-hidden flex flex-col justify-between">
-      {/* ── Ambient background elements ── */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-20"
-          style={{
-            background:
-              "radial-gradient(circle, #16a34a 0%, #059669 40%, transparent 70%)",
-            animation: "blobFloat1 9s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="absolute -bottom-60 -right-40 w-[550px] h-[550px] rounded-full opacity-15"
-          style={{
-            background:
-              "radial-gradient(circle, #0d9488 0%, #15803d 40%, transparent 70%)",
-            animation: "blobFloat2 11s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] opacity-[0.03]"
-          style={{
-            background: "radial-gradient(ellipse, #ffffff 0%, transparent 65%)",
-          }}
-        />
-        {/* Subtle grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
-        />
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden flex flex-col justify-between selection:bg-orange-500 selection:text-white">
+      {/* Subtle Ambient Backing Glow */}
+      <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-orange-600/15 via-orange-950/5 to-transparent pointer-events-none" />
+      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* ── Header ── */}
-      <div
-        className="relative z-10 text-center pt-12 md:pt-16 pb-8 px-4 sm:px-6"
-        style={{
-          opacity: headerVisible ? 1 : 0,
-          transform: headerVisible ? "translateY(0)" : "translateY(-16px)",
-          transition: "opacity 0.5s ease, transform 0.5s cubic-bezier(0.16,1,0.3,1)",
-        }}
-      >
-        {/* Logo mark */}
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-2xl shadow-emerald-500/30 mb-4 border border-emerald-400/20">
-          <UtensilsCrossed className="w-7 h-7 text-white" />
+      {/* Top Header Hero */}
+      <div className="relative z-10 max-w-5xl mx-auto w-full px-4 pt-8 sm:pt-10 pb-6 text-center space-y-3">
+        {/* Brand Tag */}
+        <div className="inline-flex items-center gap-2 bg-zinc-900/90 border border-zinc-800 text-zinc-300 text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-widest px-3.5 py-1 rounded-full shadow-inner">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>Stockholm Event Food Portal</span>
         </div>
 
-        <div className="flex items-center justify-center mb-3">
-          <div className="inline-flex items-center gap-2 bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono font-bold uppercase tracking-widest px-3.5 py-1 rounded-full backdrop-blur-md">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-            <span>VenueEat · Live Event Portal</span>
-          </div>
+        {/* Hero Title */}
+        <div className="space-y-1.5">
+          <h1 className="font-display font-black text-2xl sm:text-3xl md:text-4xl text-white tracking-tight leading-tight">
+            Which festival are you{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-amber-300 to-orange-200">
+              attending today?
+            </span>
+          </h1>
+          <p className="text-zinc-400 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed">
+            Select your event below to browse on-site food stalls, customize orders, and pick up your meals without standing in long queues.
+          </p>
         </div>
 
-        <h1 className="font-display font-black text-3xl sm:text-4xl md:text-5xl text-white tracking-tight leading-tight mb-2.5">
-          Which event are{" "}
-          <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-green-300 bg-clip-text text-transparent">
-            you attending?
-          </span>
-        </h1>
-        <p className="text-zinc-400 text-sm sm:text-base max-w-md mx-auto leading-relaxed">
-          Select your live festival or venue below to browse menu stalls, place quick mobile orders &amp; skip the queue.
-        </p>
-      </div>
-
-      {/* ── Event cards container ── */}
-      <div className="relative z-10 flex-1 px-4 sm:px-6 pb-12 max-w-4xl mx-auto w-full flex flex-col justify-center">
-        {liveEvents.length === 0 ? (
-          /* Empty state */
-          <div
-            className="text-center py-16 bg-zinc-900/60 rounded-3xl border border-zinc-800 p-8 max-w-md mx-auto"
-            style={{
-              opacity: headerVisible ? 1 : 0,
-              transition: "opacity 0.5s ease 0.2s",
-            }}
-          >
-            <div className="w-14 h-14 rounded-2xl bg-zinc-800 border border-zinc-700 flex items-center justify-center mx-auto mb-3 text-zinc-400">
-              <Calendar className="w-7 h-7" />
+        {/* Quick Search & Summary Row */}
+        {liveEvents.length > 1 && (
+          <div className="max-w-md mx-auto pt-1">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Search event by name, cuisine, or venue..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-orange-500/60 transition-colors shadow-inner"
+              />
             </div>
-            <h3 className="text-white font-display font-black text-lg mb-1.5">No Live Events Right Now</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed">
-              There are no active events at this moment. Scheduled events will automatically appear here once their status becomes live.
+          </div>
+        )}
+      </div>
+
+      {/* Event Cards Section */}
+      <div className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-4 pb-10">
+        {filteredEvents.length === 0 ? (
+          <div className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-8 text-center max-w-md mx-auto my-6">
+            <div className="w-10 h-10 rounded-xl bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto mb-2.5">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <h3 className="font-display font-bold text-white text-base mb-1">
+              No matching live events
+            </h3>
+            <p className="text-zinc-400 text-xs">
+              {searchFilter
+                ? `No active events match "${searchFilter}". Try clearing your search.`
+                : "There are currently no active live events open for mobile ordering."}
             </p>
+            {searchFilter && (
+              <button
+                onClick={() => setSearchFilter("")}
+                className="mt-3 text-xs font-bold text-orange-400 hover:text-orange-300 underline cursor-pointer"
+              >
+                Clear Search Filter
+              </button>
+            )}
           </div>
         ) : (
           <div
-            className={`grid gap-6 items-stretch ${
-              liveEvents.length === 1
-                ? "grid-cols-1 max-w-md mx-auto w-full"
-                : "grid-cols-1 md:grid-cols-2"
+            className={`grid gap-4 ${
+              filteredEvents.length === 1
+                ? "grid-cols-1 max-w-sm mx-auto"
+                : filteredEvents.length === 2
+                ? "grid-cols-1 sm:grid-cols-2 max-w-2xl mx-auto"
+                : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             }`}
           >
-            {liveEvents.map((event, i) => (
+            {filteredEvents.map((event, index) => (
               <EventCard
                 key={event.id}
                 event={event}
-                index={i}
+                index={index}
                 onSelect={setSelectedUserEventId}
               />
             ))}
           </div>
         )}
 
-        {/* Bottom footer note */}
-        {liveEvents.length > 0 && (
-          <p
-            className="text-center text-zinc-500 text-xs font-mono mt-8"
-            style={{
-              opacity: headerVisible ? 1 : 0,
-              transition: "opacity 0.5s ease 0.4s",
-            }}
-          >
-            Select a card to enter the event · Powered by VenueEat
-          </p>
-        )}
+        {/* Feature Trust Badges Footer */}
+        <div className="mt-10 pt-6 border-t border-zinc-800/80 max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-zinc-400 text-[11px]">
+          <div className="flex items-center justify-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Instant Swish &amp; Card Pay</span>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <Zap className="w-4 h-4 text-orange-400 shrink-0" />
+            <span>Live SMS / App Pick-up Alerts</span>
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+            <span>Skatteverket Tax Compliant</span>
+          </div>
+        </div>
       </div>
 
-      {/* Keyframe styles */}
-      <style>{`
-        @keyframes blobFloat1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(25px, -15px) scale(1.04); }
-          66% { transform: translate(-12px, 12px) scale(0.98); }
-        }
-        @keyframes blobFloat2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          40% { transform: translate(-20px, 15px) scale(1.06); }
-          70% { transform: translate(15px, -8px) scale(0.96); }
-        }
-      `}</style>
+      {/* Bottom Subtext */}
+      <footer className="relative z-10 py-4 text-center text-zinc-600 text-[11px] font-mono">
+        VenueEat Stockholm · Outdoor Queue Automation &amp; Mobile Pre-Ordering
+      </footer>
     </div>
   );
 };

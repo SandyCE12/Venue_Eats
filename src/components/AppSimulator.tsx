@@ -509,30 +509,51 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
       collection(db, "users", user.uid, "vendors"), 
       (snapshot) => {
         if (snapshot.empty) {
-          // Seed default vendors
+          // Seed all 20 default demo vendors
           DEFAULT_VENDORS.forEach(async (vendor) => {
             const docPath = `${vendorsPath}/${vendor.id}`;
             try {
-              await setDoc(doc(db, "users", user.uid, "vendors", vendor.id), vendor);
+              await setDoc(doc(db, "users", user.uid, "vendors", vendor.id), cleanUndefined(vendor));
             } catch (err) {
               handleFirestoreError(err, OperationType.WRITE, docPath);
             }
           });
+          setVendors(DEFAULT_VENDORS);
         } else {
           const loadedVendors: Vendor[] = [];
+          const loadedIds = new Set<string>();
           snapshot.forEach((docSnap) => {
             const vendorData = docSnap.data() as Vendor;
-            // Auto-heal existing Firestore data: default vendors should be approved by default
-            if (["v1", "v2", "v3", "v4"].includes(vendorData.id) && vendorData.isApproved !== true && vendorData.isApproved !== "rejected") {
-              vendorData.isApproved = true;
-              updateDoc(docSnap.ref, { isApproved: true }).catch((e) => {
-                console.warn("Failed to update auto-heal isApproved for vendor:", vendorData.id, e);
-              });
-            }
             loadedVendors.push(vendorData);
+            loadedIds.add(vendorData.id);
           });
-          loadedVendors.sort((a, b) => a.id.localeCompare(b.id));
-          setVendors(loadedVendors);
+
+          // Seed any missing demo vendors to user's collection
+          DEFAULT_VENDORS.forEach(async (vendor) => {
+            if (!loadedIds.has(vendor.id)) {
+              const docPath = `${vendorsPath}/${vendor.id}`;
+              try {
+                await setDoc(doc(db, "users", user.uid, "vendors", vendor.id), cleanUndefined(vendor));
+              } catch (err) {
+                console.warn("Could not seed missing vendor:", vendor.id, err);
+              }
+            }
+          });
+
+          // Merge any unseeded default vendors into local state for immediate responsiveness
+          const mergedVendors = [...loadedVendors];
+          DEFAULT_VENDORS.forEach((dv) => {
+            if (!loadedIds.has(dv.id)) {
+              mergedVendors.push(dv);
+            }
+          });
+
+          mergedVendors.sort((a, b) => {
+            const aNum = parseInt(a.id.replace(/\D/g, ""), 10) || 999;
+            const bNum = parseInt(b.id.replace(/\D/g, ""), 10) || 999;
+            return aNum - bNum;
+          });
+          setVendors(mergedVendors);
         }
       },
       (error) => {
@@ -546,8 +567,13 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
       q, 
       (snapshot) => {
         const loadedOrders: Order[] = [];
+        const seenOrderIds = new Set<string>();
+
         snapshot.forEach((doc) => {
-          loadedOrders.push({ ...doc.data(), id: doc.id } as Order);
+          if (!seenOrderIds.has(doc.id)) {
+            seenOrderIds.add(doc.id);
+            loadedOrders.push({ ...doc.data(), id: doc.id } as Order);
+          }
         });
         // Sort orders descending by timestamp/id
         loadedOrders.sort((a, b) => b.id.localeCompare(a.id));
@@ -1051,7 +1077,7 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
       status: "Placed",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       paymentMethod: (paymentMethodUsed as any) || "Swish",
-      totalAmount: getCartTotal(),
+      totalAmount: getCartTotal() + platformSwishPaid,
       queueNumber: newQueueNumber,
       customerName: displayNameWithTable,
       estimatedPrepTime: estimateVendorWaitTime(activeVendorId).minutes,
@@ -3330,11 +3356,7 @@ export default function AppSimulator({ user, handleSignIn }: AppSimulatorProps) 
                           </div>
                           <div className="border-t border-zinc-800 pt-2 flex justify-between items-center text-xs">
                             <span className="text-zinc-400 font-medium">Customer: {o.customerName || "Guest"}</span>
-                            <span className="font-mono font-black text-emerald-400">
-                              {o.items && o.items.length > 0
-                                ? o.items.reduce((sum, it) => sum + (it.menuItem.price * it.quantity), 0)
-                                : o.totalAmount} SEK
-                            </span>
+                            <span className="font-mono font-black text-emerald-400">{o.totalAmount} SEK</span>
                           </div>
                         </div>
                       ))}

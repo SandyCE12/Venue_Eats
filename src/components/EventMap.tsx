@@ -46,29 +46,44 @@ export default function EventMap({
   // Filter approved vendors only
   const approvedVendors = vendors.filter(v => v.isApproved === true);
 
-  // Pre-defined coordinate coordinates (percentage of width/height) for default vendors
-  // Newly added vendors can be placed dynamically on a neat circular path around the fountain.
+  // Pre-defined coordinates (percentage of width/height) for all 20 demo vendors
   const getVendorCoordinates = (id: string, index: number) => {
     const coords: { [key: string]: { x: number; y: number; zone: string } } = {
-      v1: { x: 50, y: 52, zone: "Fountain Square Central" }, // Center
-      v2: { x: 28, y: 22, zone: "Main Stage Grass Lawn" }, // Top Left
-      v3: { x: 75, y: 72, zone: "Beer Garden & Lounge" }, // Bottom Right
-      v4: { x: 70, y: 30, zone: "Palace Walkway East" }  // Top Right
+      v1: { x: 50, y: 52, zone: "Fountain Square Central" },
+      v2: { x: 26, y: 22, zone: "Teatern Stage North" },
+      v3: { x: 76, y: 74, zone: "Karl XII Torg Area" },
+      v4: { x: 72, y: 28, zone: "Molin's Fountain West" },
+      v5: { x: 38, y: 78, zone: "Strömgatan Promenade" },
+      v6: { x: 50, y: 18, zone: "Hamngatan North Pavilion" },
+      v7: { x: 22, y: 64, zone: "Jacobsgatan South Corner" },
+      v8: { x: 82, y: 48, zone: "Garden Courtyard East" },
+      v9: { x: 42, y: 38, zone: "Kungsträdgården Central Lawn" },
+      v10: { x: 62, y: 65, zone: "Waterfront Boulevard West" },
+      v11: { x: 32, y: 42, zone: "Main Avenue North" },
+      v12: { x: 18, y: 46, zone: "Green Corner West" },
+      v13: { x: 84, y: 68, zone: "Harbor View Terrace" },
+      v14: { x: 68, y: 84, zone: "Karl XII Torg South" },
+      v15: { x: 34, y: 16, zone: "Teatern Promenade East" },
+      v16: { x: 58, y: 46, zone: "Fountain Plaza Center" },
+      v17: { x: 26, y: 82, zone: "South Park Garden" },
+      v18: { x: 66, y: 16, zone: "North Garden Alley" },
+      v19: { x: 48, y: 86, zone: "Strömgatan Grill Zone" },
+      v20: { x: 16, y: 28, zone: "Entrance Promenade South" }
     };
 
     if (coords[id]) {
       return coords[id];
     }
 
-    // Dynamic placement for registered vendors so they don't overlap
-    const angle = (index * 60 * Math.PI) / 180;
-    const r = 25; // radius
+    // Dynamic placement for any custom added vendors
+    const angle = (index * 45 * Math.PI) / 180;
+    const r = 28; // radius
     const x = 50 + r * Math.cos(angle);
     const y = 52 + r * Math.sin(angle);
     return {
-      x: Math.max(15, Math.min(85, x)),
-      y: Math.max(15, Math.min(85, y)),
-      zone: `Zone ${String.fromCharCode(65 + (index % 4))} Pop-Up Area`
+      x: Math.max(14, Math.min(86, x)),
+      y: Math.max(14, Math.min(86, y)),
+      zone: `Zone ${String.fromCharCode(65 + (index % 6))} Pop-Up Area`
     };
   };
 
@@ -155,8 +170,8 @@ export default function EventMap({
                     width={16}
                     height={16}
                     rx={3}
-                    fill={isActive ? "#dcfce7" : "#ffffff"}
-                    stroke={isActive ? "#16a34a" : "#cbd5e1"}
+                    fill={isActive ? "#ffedd5" : "#ffffff"}
+                    stroke={isActive ? "#f97316" : "#cbd5e1"}
                     strokeWidth={isActive ? 1.8 : 1}
                     className="transition-all duration-300"
                   />
@@ -167,7 +182,7 @@ export default function EventMap({
                     width={16}
                     height={4}
                     rx={1}
-                    fill={isActive ? "#16a34a" : "#0f172a"}
+                    fill={isActive ? "#f97316" : "#0f172a"}
                     opacity={isActive ? 1 : 0.8}
                   />
                   {/* Stall ID Text on SVG Ground */}
@@ -177,7 +192,7 @@ export default function EventMap({
                     textAnchor="middle"
                     fontSize="3"
                     fontWeight="bold"
-                    fill={isActive ? "#166534" : "#475569"}
+                    fill={isActive ? "#9a3412" : "#475569"}
                     fontFamily="monospace"
                   >
                     {stallBadge.replace("Stall ", "")}
