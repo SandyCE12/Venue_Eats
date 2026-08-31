@@ -83,7 +83,7 @@ interface AppContextType {
     paymentMethodUsed?: string
   ) => Promise<Order>;
   updateOrderStatus: (orderId: string, newStatus: OrderStatus) => Promise<void>;
-  handleUpdateVendorProfile: (updatedVendor: Vendor) => Promise<void>;
+  handleUpdateVendorProfile: (updatedVendorOrId: Vendor | string, updatedFields?: Partial<Vendor>) => Promise<void>;
   handleApproveVendor: (vendorId: string) => Promise<void>;
   handleSuspendVendor: (vendorId: string) => Promise<void>;
   handleAddNewVendor: (newVendor: Vendor) => Promise<void>;
@@ -424,15 +424,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Vendor actions
-  const handleUpdateVendorProfile = async (updatedVendor: Vendor) => {
+  const handleUpdateVendorProfile = async (
+    updatedVendorOrId: Vendor | string,
+    updatedFields?: Partial<Vendor>
+  ) => {
+    let targetVendor: Vendor | undefined;
+    if (typeof updatedVendorOrId === "string") {
+      const existing = vendors.find(v => v.id === updatedVendorOrId);
+      if (!existing) return;
+      targetVendor = { ...existing, ...(updatedFields || {}) };
+    } else {
+      targetVendor = updatedVendorOrId;
+    }
+
     try {
-      await setDoc(doc(db, "vendors", updatedVendor.id), cleanUndefined(updatedVendor));
+      await setDoc(doc(db, "vendors", targetVendor.id), cleanUndefined(targetVendor));
     } catch (err) {
       console.warn("Firestore vendor profile update error:", err);
     }
-    setVendors(prev => prev.map(v => v.id === updatedVendor.id ? updatedVendor : v));
-    setNotification(`Updated profile & settings for ${updatedVendor.name}`);
-    logActivity(`Vendor profile for "${updatedVendor.name}" updated.`, "vendor", "info");
+    setVendors(prev => prev.map(v => v.id === targetVendor!.id ? targetVendor! : v));
+    setNotification(`Updated menu & settings for ${targetVendor.name}`);
+    logActivity(`Vendor profile for "${targetVendor.name}" updated.`, "vendor", "info");
   };
 
   const handleApproveVendor = async (vendorId: string) => {
