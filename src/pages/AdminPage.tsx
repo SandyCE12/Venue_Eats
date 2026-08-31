@@ -7,17 +7,20 @@ import {
   TrendingUp, 
   Map, 
   Activity, 
-  QrCode, 
   CheckCircle, 
   XCircle, 
   Plus, 
   LogOut,
-  Users
+  Users,
+  Eye,
+  Utensils,
+  ChevronRight,
+  DollarSign
 } from "lucide-react";
 import { AdminSalesCharts } from "../components/AdminSalesCharts";
 import EventMap from "../components/EventMap";
-import TableQrGenerator from "../components/TableQrGenerator";
 import AdminMapManager from "../components/AdminMapManager";
+import { AdminStoreDetailModal } from "../components/AdminStoreDetailModal";
 import { Vendor } from "../types";
 
 export const AdminPage: React.FC = () => {
@@ -33,8 +36,9 @@ export const AdminPage: React.FC = () => {
     estimateVendorWaitTime
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<"vendors" | "analytics" | "map" | "activity" | "tables">("vendors");
+  const [activeTab, setActiveTab] = useState<"vendors" | "analytics" | "map" | "activity">("vendors");
   const [showAddVendorModal, setShowAddVendorModal] = useState(false);
+  const [selectedVendorForDetail, setSelectedVendorForDetail] = useState<Vendor | null>(null);
 
   // New vendor form fields
   const [newVendorName, setNewVendorName] = useState("");
@@ -155,16 +159,6 @@ export const AdminPage: React.FC = () => {
           <Activity className="w-4 h-4" />
           <span>Audit Stream</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab("tables")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display font-black text-xs transition-all cursor-pointer ${
-            activeTab === "tables" ? "bg-zinc-900 text-white shadow-md" : "bg-white text-zinc-600 border border-zinc-200"
-          }`}
-        >
-          <QrCode className="w-4 h-4" />
-          <span>Table QR Codes</span>
-        </button>
       </div>
 
       {/* RENDER TAB CONTENT */}
@@ -190,8 +184,6 @@ export const AdminPage: React.FC = () => {
             ))}
           </div>
         </div>
-      ) : activeTab === "tables" ? (
-        <TableQrGenerator />
       ) : (
         /* VENDORS MANAGEMENT TAB */
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-6 shadow-xs">
@@ -212,50 +204,128 @@ export const AdminPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {vendors.map(v => {
               const isApproved = v.isApproved === true;
+              const storeOrders = orders.filter(
+                (o) => o.vendorId === v.id || o.vendorName === v.name
+              );
+              const storeCompleted = storeOrders.filter(o => o.status === "Completed");
+              const storeRevenue = storeCompleted.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
+
               return (
-                <div key={v.id} className="p-5 rounded-3xl border border-zinc-200 bg-zinc-50 space-y-4 text-left">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <span className="text-3xl p-2 bg-white rounded-2xl border border-zinc-200">{v.logo}</span>
-                      <div>
-                        <h4 className="font-display font-black text-base text-zinc-900 leading-tight">{v.name}</h4>
-                        <p className="text-xs text-zinc-500 font-medium">{v.cuisine} • {v.stallNumber}</p>
+                <div
+                  key={v.id}
+                  onClick={() => setSelectedVendorForDetail(v)}
+                  className="group relative p-5 rounded-3xl border border-zinc-200 hover:border-orange-500/50 bg-zinc-50 hover:bg-white space-y-4 text-left shadow-xs hover:shadow-xl transition-all duration-200 cursor-pointer flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl p-2 bg-white rounded-2xl border border-zinc-200 group-hover:scale-105 transition-transform shrink-0">
+                          {v.logo || "🍛"}
+                        </span>
+                        <div>
+                          <h4 className="font-display font-black text-base text-zinc-900 group-hover:text-orange-600 transition-colors leading-tight">
+                            {v.name}
+                          </h4>
+                          <p className="text-xs text-zinc-500 font-medium">
+                            {v.cuisine} • {v.stallNumber || "Stall #01"}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
+                          isApproved
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {isApproved ? "Approved" : "Suspended"}
+                      </span>
+                    </div>
+
+                    {/* Quick Earnings & Menu Pills */}
+                    <div className="grid grid-cols-2 gap-2 pt-1 font-mono text-xs">
+                      <div className="bg-white group-hover:bg-zinc-50 p-2 rounded-xl border border-zinc-200/80">
+                        <span className="text-[10px] text-zinc-400 block uppercase">Gross Sales</span>
+                        <span className="font-black text-orange-600">
+                          {storeRevenue.toLocaleString()} SEK
+                        </span>
+                      </div>
+                      <div className="bg-white group-hover:bg-zinc-50 p-2 rounded-xl border border-zinc-200/80">
+                        <span className="text-[10px] text-zinc-400 block uppercase">Menu Items</span>
+                        <span className="font-bold text-zinc-800">
+                          {v.menu?.length || 0} Dishes
+                        </span>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full ${
-                      isApproved ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                    }`}>
-                      {isApproved ? "Approved" : "Suspended"}
-                    </span>
+
+                    <div className="text-xs font-mono space-y-1 text-zinc-600 border-t border-zinc-200/80 pt-3">
+                      <p className="truncate">Swish: <span className="text-zinc-900 font-bold">{v.swishNumber || "123 918 27 36"}</span></p>
+                      <p className="truncate">Email: <span className="text-zinc-900 font-bold">{v.email}</span></p>
+                    </div>
                   </div>
 
-                  <div className="text-xs font-mono space-y-1 text-zinc-600 border-t border-zinc-200 pt-3">
-                    <p>Swish Merchant: <span className="text-zinc-900 font-bold">{v.swishNumber}</span></p>
-                    <p>Contact Email: <span className="text-zinc-900 font-bold">{v.email}</span></p>
-                  </div>
+                  <div className="pt-2 space-y-2 border-t border-zinc-200/80">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedVendorForDetail(v);
+                      }}
+                      className="w-full bg-zinc-900 hover:bg-orange-500 text-white font-bold text-xs py-2 px-3 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View Store Details (Earnings &amp; Menu)</span>
+                      <ChevronRight className="w-3.5 h-3.5 ml-auto" />
+                    </button>
 
-                  <div className="pt-2 flex gap-2">
-                    {isApproved ? (
-                      <button
-                        onClick={() => handleSuspendVendor(v.id)}
-                        className="w-full bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-2 rounded-xl transition-all cursor-pointer"
-                      >
-                        Suspend Stall
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleApproveVendor(v.id)}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl transition-all cursor-pointer"
-                      >
-                        Approve Stall
-                      </button>
-                    )}
+                    <div className="flex gap-2">
+                      {isApproved ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSuspendVendor(v.id);
+                          }}
+                          className="w-full bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
+                        >
+                          Suspend Stall
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApproveVendor(v.id);
+                          }}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
+                        >
+                          Approve Stall
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+      )}
+
+      {/* INDIVIDUAL STORE DETAILS MODAL (EARNINGS & MENU) */}
+      {selectedVendorForDetail && (
+        <AdminStoreDetailModal
+          vendor={selectedVendorForDetail}
+          orders={orders}
+          onClose={() => setSelectedVendorForDetail(null)}
+          onApproveVendor={async (id) => {
+            await handleApproveVendor(id);
+            setSelectedVendorForDetail(prev => prev && prev.id === id ? { ...prev, isApproved: true } : prev);
+          }}
+          onSuspendVendor={async (id) => {
+            await handleSuspendVendor(id);
+            setSelectedVendorForDetail(prev => prev && prev.id === id ? { ...prev, isApproved: false } : prev);
+          }}
+        />
       )}
 
       {/* ADD VENDOR MODAL */}

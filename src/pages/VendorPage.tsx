@@ -2,24 +2,17 @@ import React, { useState } from "react";
 import { useApp } from "../context/AppContext";
 import { RealAuthGate } from "../components/RealAuthGate";
 import { 
-  Store, 
-  Clock, 
   Utensils, 
   TrendingUp, 
   Settings, 
   MessageSquare, 
   LogOut, 
-  Check, 
-  CheckCircle, 
-  AlertCircle, 
-  Plus, 
-  ToggleLeft, 
-  ToggleRight,
   Bell
 } from "lucide-react";
 import VendorAnalytics from "../components/VendorAnalytics";
 import VendorSettings from "../components/VendorSettings";
 import SupportChat from "../components/SupportChat";
+import { VendorMenuManager } from "../components/VendorMenuManager";
 
 export const VendorPage: React.FC = () => {
   const {
@@ -141,32 +134,7 @@ export const VendorPage: React.FC = () => {
           <SupportChat type="vendor" vendorName={selectedVendor.name} />
         </div>
       ) : activeTab === "menu" ? (
-        <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-6 shadow-xs">
-          <div className="flex justify-between items-center border-b border-zinc-150 pb-4">
-            <div>
-              <h3 className="font-display font-black text-xl text-zinc-900">Manage Menu Items & Prices</h3>
-              <p className="text-xs text-zinc-500 font-medium">Toggle stock availability or edit live prices on the fly.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {selectedVendor.menu.map(item => (
-              <div key={item.id} className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50 flex justify-between items-center gap-4">
-                <div className="space-y-1">
-                  <h4 className="font-display font-black text-sm text-zinc-900">{item.name}</h4>
-                  <span className="font-mono text-xs font-bold text-zinc-700">{item.price} SEK</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-full ${
-                    item.stock ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"
-                  }`}>
-                    {item.stock ? "In Stock" : "Sold Out"}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <VendorMenuManager vendor={selectedVendor} onUpdateVendor={handleUpdateVendorProfile} />
       ) : (
         /* ORDERS QUEUE TAB */
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-6 shadow-xs">
