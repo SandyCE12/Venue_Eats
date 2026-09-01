@@ -76,7 +76,7 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
     }));
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.6-flash",
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
