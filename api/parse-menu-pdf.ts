@@ -56,7 +56,7 @@ Rules:
 - Do not include section headers, combos with unclear pricing, or non-food items.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           inlineData: {
@@ -100,8 +100,18 @@ Rules:
     res.json({ items: sanitized, isFallback: false });
   } catch (error: any) {
     console.error("PDF menu parse error:", error);
+    // Parse error string if it's JSON from Google API
+    let friendlyError = "Failed to parse menu PDF with Gemini.";
+    try {
+      if (typeof error?.message === "string") {
+        const parsed = JSON.parse(error.message);
+        friendlyError = parsed?.message || error.message;
+      }
+    } catch {
+      friendlyError = error?.message || friendlyError;
+    }
     res.status(200).json({
-      error: error.message || "Failed to parse menu PDF with Gemini.",
+      error: friendlyError,
       items: [],
       isFallback: true,
     });

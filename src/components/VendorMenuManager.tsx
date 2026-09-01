@@ -234,9 +234,9 @@ export const VendorMenuManager: React.FC<VendorMenuManagerProps> = ({
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to parse PDF.");
+      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : "Failed to parse PDF.");
       if (data.error && (!data.items || data.items.length === 0)) {
-        throw new Error(data.error);
+        throw new Error(typeof data.error === 'string' ? data.error : "Failed to extract items from PDF.");
       }
       if (!data.items || data.items.length === 0) {
         throw new Error("No menu items found in this PDF. Please check it contains a readable text-based menu.");
