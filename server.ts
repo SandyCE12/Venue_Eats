@@ -15,14 +15,7 @@ function getAiClient() {
       console.warn("GEMINI_API_KEY is not defined. AI feature will use high-quality template fallback.");
       return null;
     }
-    aiClient = new GoogleGenAI({
-      apiKey: apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
+    aiClient = new GoogleGenAI({ apiKey });
   }
   return aiClient;
 }
@@ -119,17 +112,17 @@ The proposal MUST be formatted in clean Markdown and contain the following secti
 Keep the tone professional, encouraging, and authoritative. Return the markdown content directly.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents: prompt,
       config: {
         temperature: 0.7,
       }
     });
 
-    res.json({ proposal: response.text, isFallback: false });
+    res.json({ proposal: response.text || fallbackText, isFallback: false });
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    res.status(500).json({ error: "Failed to generate proposal via Gemini", details: error.message });
+    res.json({ proposal: fallbackText, isFallback: true });
   }
 });
 
@@ -206,7 +199,7 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
     }));
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -214,10 +207,10 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
       }
     });
 
-    res.json({ text: response.text, isFallback: false });
+    res.json({ text: response.text || text, isFallback: false });
   } catch (error: any) {
     console.error("Gemini Support Chat Error:", error);
-    res.status(500).json({ error: "Failed to process chat message", details: error.message });
+    res.json({ text, isFallback: true });
   }
 });
 
@@ -241,15 +234,7 @@ app.post("/api/parse-menu-pdf", express.json({ limit: "6mb" }), async (req, res)
   }
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { inlineData: { mimeType: "application/pdf", data: pdfBase64 } },
-            {
-              text: `You are a menu digitization assistant. Extract ALL food and drink items from this restaurant/food stall menu PDF.
+    const promptText = `You are a menu digitization assistant. Extract ALL food and drink items from this restaurant/food stall menu PDF.
 
 Return ONLY a raw JSON array — no markdown fences, no explanations, no extra text. Just the JSON array.
 
@@ -266,10 +251,18 @@ Rules:
 - If a price is completely unreadable, use 0.
 - Categorize as: Food (main dishes, rice, curry, rolls, grills), Drink (juice, lassi, chai, water, soda), Snack (starters, samosas, fries, small bites), Dessert (sweets, ice cream, kheer, halwa).
 - If the PDF is not a menu or has no readable items, return an empty array [].
-- Do not include section headers, combos with unclear pricing, or non-food items.`,
-            },
-          ],
+- Do not include section headers, combos with unclear pricing, or non-food items.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: [
+        {
+          inlineData: {
+            mimeType: "application/pdf",
+            data: pdfBase64,
+          },
         },
+        promptText,
       ],
       config: { temperature: 0.1 },
     });
@@ -281,7 +274,7 @@ Rules:
     try {
       items = JSON.parse(cleaned);
     } catch {
-      return res.status(422).json({ error: "Could not extract menu items from this PDF. Please ensure the PDF contains a readable, text-based menu (not a scanned image)." });
+      return res.status(422).json({ error: "Could not extract menu items from this PDF. Please ensure the PDF contains readable text." });
     }
 
     if (!Array.isArray(items)) {
@@ -300,7 +293,7 @@ Rules:
     res.json({ items: sanitized, isFallback: false });
   } catch (error: any) {
     console.error("PDF menu parse error:", error);
-    res.status(500).json({ error: "Failed to parse menu PDF. Please try again.", details: error.message });
+    res.status(200).json({ error: error.message || "Failed to parse menu PDF with Gemini.", items: [], isFallback: true });
   }
 });
 
