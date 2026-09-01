@@ -76,7 +76,7 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
     }));
 
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       contents: contents,
       config: {
         systemInstruction: systemInstruction,
@@ -87,7 +87,6 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
     res.json({ text: response.text || getFallbackText(chatType, lastUserMessage), isFallback: false });
   } catch (error: any) {
     console.error("Gemini Support Chat Error, returning fallback:", error);
-    // Graceful fallback on API error — never 500!
     res.json({ text: getFallbackText(chatType, lastUserMessage), isFallback: true });
   }
 }
