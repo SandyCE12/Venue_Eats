@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -18,6 +18,13 @@ import {
   Wallet,
   ShieldCheck
 } from "lucide-react";
+import {
+  initiateSwishPayment,
+  checkSwishPaymentStatus,
+  openSwishApp,
+  isMobileDevice,
+  generateOrderRef,
+} from "../lib/swish";
 
 interface SwishPaymentGatewayProps {
   isOpen: boolean;
@@ -57,6 +64,13 @@ export default function SwishPaymentGateway({
   const [cardExpiry, setCardExpiry] = useState("08/28");
   const [cardCvc, setCardCvc] = useState("382");
   const [cardHolder, setCardHolder] = useState(customerName || "");
+
+  // Real Swish payment state
+  const [swishLoading, setSwishLoading] = useState(false);
+  const [swishError, setSwishError] = useState<string | null>(null);
+  const [swishPaymentId, setSwishPaymentId] = useState<string | null>(null);
+  const [isDesktopUser, setIsDesktopUser] = useState(false);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync cardholder name when customerName changes
   useEffect(() => {
@@ -122,19 +136,98 @@ export default function SwishPaymentGateway({
     return digits.length === 10 && (digits.startsWith("07") || digits.startsWith("123"));
   };
 
-  const handleOpenBankID = () => {
+  const handleOpenBankID = async () => {
     if (!customerName.trim()) {
       onCustomerNameChange("Guest Guestson");
     }
-    
+
     if (!validateSwedishSwish(phoneNumber)) {
       setValidationError("Vänligen ange ett giltigt 10-siffrigt svenskt Swish-nummer (t.ex. 07X-XXX XX XX eller 123 XXX XX XX).");
       return;
     }
 
     setValidationError(null);
-    setStep("bankid");
+    setSwishError(null);
+    setSwishLoading(true);
+
+    try {
+      const orderId = generateOrderRef();
+      const result = await initiateSwishPayment(
+        totalAmount,
+        orderId,
+        `VenueEat - ${vendorName}`
+      );
+
+      setSwishPaymentId(result.paymentId);
+
+      const mobile = isMobileDevice();
+      setIsDesktopUser(!mobile);
+
+      if (mobile) {
+        // Open Swish app on phone
+        openSwishApp(result.deepLink);
+      }
+
+      setStep("bankid");
+      setSwishLoading(false);
+
+      // Start polling for payment confirmation every 2 seconds
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusResult = await checkSwishPaymentStatus(result.paymentId);
+
+          if (statusResult.status === "PAID") {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            setStep("success");
+            onPaymentSuccess(
+              customerName || "Guest User",
+              vendorShare,
+              platformFee,
+              "Swish"
+            );
+          } else if (
+            statusResult.status === "DECLINED" ||
+            statusResult.status === "CANCELLED" ||
+            statusResult.status === "ERROR"
+          ) {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            setSwishError(`Betalning misslyckades: ${statusResult.status}. Försök igen.`);
+            setStep("details");
+          }
+        } catch {
+          // Network hiccup during poll — keep polling
+        }
+      }, 2000);
+
+    } catch (err: any) {
+      setSwishLoading(false);
+      setSwishError(err.message || "Swish-betalning misslyckades. Försök igen.");
+    }
   };
+
+  // Cleanup polling on unmount or close
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const handleKeyPress = (_num: string) => {
+    // No-op: real Swish handles PIN/biometric inside the Swish app itself
+  };
+
+  const handleDeletePin = () => {
+    // No-op for real Swish
+  };
+
+  const handleQuickBiometric = () => {
+    // No-op: biometric auth is inside the Swish app on mobile
+  };
+
 
   const handleCardPay = () => {
     if (!customerName.trim() && cardHolder) {
@@ -165,35 +258,6 @@ export default function SwishPaymentGateway({
       setStep("success");
       onPaymentSuccess(customerName || "Apple Pay User", vendorShare, platformFee, "Apple Pay");
     }, 1800);
-  };
-
-  const handleKeyPress = (num: string) => {
-    if (pin.length < 6) {
-      const newPin = pin + num;
-      setPin(newPin);
-      
-      // Auto-submit once 6 digits are entered
-      if (newPin.length === 6) {
-        setStep("signing");
-        setTimeout(() => {
-          setStep("success");
-          onPaymentSuccess(customerName || "Guest User", vendorShare, platformFee, "Swish");
-        }, 2200);
-      }
-    }
-  };
-
-  const handleDeletePin = () => {
-    setPin(prev => prev.slice(0, -1));
-  };
-
-  const handleQuickBiometric = () => {
-    setPin("******");
-    setStep("signing");
-    setTimeout(() => {
-      setStep("success");
-      onPaymentSuccess(customerName || "Guest User", vendorShare, platformFee, "Swish");
-    }, 2200);
   };
 
   const handleFinishPayment = () => {
@@ -379,18 +443,28 @@ export default function SwishPaymentGateway({
                   </p>
                 </div>
 
+                {swishError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 flex gap-2 items-start">
+                    <X className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <p className="text-[9px] text-rose-700 font-bold leading-relaxed">{swishError}</p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleOpenBankID}
-                  disabled={!customerName.trim()}
+                  disabled={!customerName.trim() || swishLoading}
                   className={`w-full font-display font-black py-3 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer active:scale-98 ${
-                    customerName.trim() 
+                    customerName.trim() && !swishLoading
                       ? "bg-sky-500 hover:bg-sky-600 border-t border-sky-400 text-white" 
                       : "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed"
                   }`}
                   id="btn-swish-pay"
                 >
-                  <Fingerprint className="w-4 h-4 animate-pulse" />
-                  Signera Split-Swish
+                  {swishLoading ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Startar Swish...</>
+                  ) : (
+                    <><Fingerprint className="w-4 h-4 animate-pulse" /> Betala med Swish</>
+                  )}
                 </button>
               </div>
             )}
@@ -539,9 +613,9 @@ export default function SwishPaymentGateway({
           </motion.div>
         )}
 
-        {/* STEP 2: BANKID ENTER SECURITY CODE WITH BOTH RECIPIENTS SHOWN */}
+        {/* STEP 2: WAITING FOR SWISH PAYMENT */}
         {step === "bankid" && (
-          <motion.div 
+          <motion.div
             key="bankid"
             initial={{ y: 200, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -549,20 +623,25 @@ export default function SwishPaymentGateway({
             className="bg-zinc-900 text-white rounded-t-3xl sm:rounded-3xl p-5 space-y-5 shadow-2xl border-t sm:border border-zinc-800 flex flex-col justify-between w-full max-w-lg max-h-[92vh] sm:max-h-[88vh] overflow-y-auto text-left"
             id="bankid-auth-screen"
           >
-            {/* BankID Header */}
+            {/* Header */}
             <div className="flex justify-between items-center border-b border-zinc-800 pb-2">
               <div className="flex items-center gap-2">
-                {/* Simplified Mock BankID Logo Emblem */}
                 <div className="w-7 h-7 rounded-xl bg-white flex items-center justify-center shadow-md border border-zinc-200">
-                  <div className="w-4 h-4 bg-zinc-900 rounded-full flex items-center justify-center text-[9px] font-black text-white italic tracking-tighter">ID</div>
+                  <div className="w-4 h-4 bg-zinc-900 rounded-full flex items-center justify-center text-[9px] font-black text-white italic tracking-tighter">S</div>
                 </div>
                 <div>
-                  <h4 className="font-display font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Mobilt BankID</h4>
-                  <p className="text-[8px] text-zinc-400 font-bold font-mono">SÄKER SIGNERING</p>
+                  <h4 className="font-display font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Swish Handel</h4>
+                  <p className="text-[8px] text-zinc-400 font-bold font-mono">SÄKER BETALNING</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setStep("details")}
+              <button
+                onClick={() => {
+                  if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                  }
+                  setStep("details");
+                }}
                 className="text-[10px] font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 px-2.5 py-1 rounded-lg transition-all"
                 id="btn-cancel-bankid"
               >
@@ -570,13 +649,10 @@ export default function SwishPaymentGateway({
               </button>
             </div>
 
-            {/* Signature Request Box detailing split recipients */}
+            {/* Payment breakdown */}
             <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800 text-center space-y-2 shadow-inner">
-              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider font-mono">Signering begärd av</p>
-              <h5 className="font-display font-black text-sky-400 text-xs">VenueEat Stockholm</h5>
-              
+              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider font-mono">Betalningsuppdelning</p>
               <div className="pt-2 border-t border-zinc-900 space-y-1.5 text-left">
-                <p className="text-[9px] text-zinc-400 font-bold font-mono uppercase text-center">FÖRDELADE MOTTAGARE (SPLIT):</p>
                 <div className="flex justify-between items-center text-[10px] bg-zinc-900/50 p-1.5 rounded-lg border border-zinc-850">
                   <span className="text-zinc-300 font-medium truncate max-w-[120px]">🍔 {vendorName}</span>
                   <span className="font-mono text-zinc-200 font-bold">{vendorShare.toFixed(2)} SEK</span>
@@ -585,82 +661,50 @@ export default function SwishPaymentGateway({
                   <span className="text-zinc-300 font-medium">👑 VenueEat Serviceavgift</span>
                   <span className="font-mono text-zinc-200 font-bold">{platformFee.toFixed(2)} SEK</span>
                 </div>
-                
                 <div className="pt-1 text-center font-mono text-[11px] font-black text-white">
-                  Totalt Belopp: {totalAmount.toFixed(2)} SEK
+                  Totalt: {totalAmount.toFixed(2)} SEK
                 </div>
               </div>
             </div>
 
-            {/* Security PIN Display Circles */}
-            <div className="space-y-1.5 text-center">
-              <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-wide">Ange säkerhetskod (6 siffror)</p>
-              <div className="flex justify-center gap-2.5 py-1">
-                {Array.from({ length: 6 }).map((_, i) => {
-                  const isActive = i < pin.length;
-                  return (
-                    <motion.div
-                      key={i}
-                      animate={isActive ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-                      transition={{ duration: 0.15 }}
-                      className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
-                        isActive 
-                          ? "bg-sky-400 border-sky-400 shadow-md shadow-sky-400/30" 
-                          : "border-zinc-700 bg-transparent"
-                      }`}
-                    />
-                  );
-                })}
-              </div>
+            {/* Waiting / instruction */}
+            <div className="flex flex-col items-center gap-4 py-4">
+              <Loader2 className="w-10 h-10 text-sky-400 animate-spin" />
+              {isDesktopUser ? (
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-black text-white">Öppna Swish på din mobil</p>
+                  <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
+                    Swish fungerar bara på mobila enheter.<br />
+                    Öppna den här sidan på din telefon för att betala.
+                  </p>
+                </div>
+              ) : (
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-black text-white">Godkänn i Swish-appen</p>
+                  <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
+                    Swish-appen har öppnats på din telefon.<br />
+                    Godkänn betalningen med Face ID eller fingeravtryck.
+                  </p>
+                  <p className="text-[9px] text-zinc-600 font-mono mt-2">
+                    Väntar på bekräftelse...
+                  </p>
+                </div>
+              )}
             </div>
 
-            {/* Keypad Layout */}
-            <div className="grid grid-cols-3 gap-2.5 max-w-xs mx-auto pt-1" id="bankid-keypad">
-              {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => handleKeyPress(num)}
-                  className="h-10 rounded-xl bg-zinc-800/60 hover:bg-zinc-800 active:scale-95 text-base font-bold font-mono transition-all text-white cursor-pointer border border-zinc-700/30 flex items-center justify-center shadow-xs"
-                >
-                  {num}
-                </button>
-              ))}
-              
-              {/* Backspace Button */}
-              <button
-                onClick={handleDeletePin}
-                className="h-10 rounded-xl bg-zinc-900 hover:bg-zinc-850 active:scale-95 text-[10px] font-bold uppercase tracking-wider font-mono transition-all text-zinc-400 cursor-pointer flex items-center justify-center"
-              >
-                Radera
-              </button>
-
-              {/* 0 Button */}
-              <button
-                onClick={() => handleKeyPress("0")}
-                className="h-10 rounded-xl bg-zinc-800/60 hover:bg-zinc-800 active:scale-95 text-base font-bold font-mono transition-all text-white cursor-pointer border border-zinc-700/30 flex items-center justify-center"
-              >
-                0
-              </button>
-
-              {/* Fast Biometric Bi-pass Button */}
-              <button
-                onClick={handleQuickBiometric}
-                className="h-10 rounded-xl bg-sky-950/40 hover:bg-sky-900/60 border border-sky-800/40 active:scale-95 text-[8.5px] font-black transition-all text-sky-400 cursor-pointer flex flex-col items-center justify-center leading-none"
-              >
-                <Fingerprint className="w-3.5 h-3.5 text-sky-400 mb-0.5" />
-                Bypass
-              </button>
-            </div>
-
-            <div className="text-center">
-              <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1 font-mono">
-                <Lock className="w-2.5 h-2.5 text-zinc-500" /> Krypterad SSL anslutning
-              </span>
+            <div className="bg-sky-950/50 border border-sky-800/40 rounded-xl p-2.5 flex gap-2 items-start">
+              <Shield className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
+              <p className="text-[8.5px] text-sky-300/80 font-bold leading-relaxed">
+                Ingen PIN-kod behövs här. Betalningen godkänns direkt i Swish-appen med BankID.
+              </p>
             </div>
           </motion.div>
         )}
 
+
+
         {/* STEP 3: LOADING SPINNER SIGNING */}
+
         {step === "signing" && (
           <motion.div 
             key="signing"
