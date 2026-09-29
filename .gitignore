@@ -6,3 +6,12 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Swish credentials - NEVER commit these
+*.key
+*.pem
+*.p12
+*.pfx
+*.csr
+swish_cert_base64.txt
+swish_key_base64.txt
