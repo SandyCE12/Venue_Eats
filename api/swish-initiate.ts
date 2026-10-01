@@ -94,9 +94,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (response.statusCode === 201) {
       const token = response.headers["paymentrequesttoken"] as string;
-      const deepLink = `swish://paymentrequest?token=${token}&callbackurl=${encodeURIComponent(
-        "https://venue-eats.vercel.app"
-      )}`;
+      const appUrl = process.env.APP_URL || "https://venue-eats.vercel.app";
+      const deepLink = `swish://paymentrequest?token=${token}&callbackurl=${encodeURIComponent(appUrl)}`;
 
       return res.status(200).json({
         paymentId: instructionUUID,

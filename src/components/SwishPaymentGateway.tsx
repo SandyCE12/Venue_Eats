@@ -69,6 +69,7 @@ export default function SwishPaymentGateway({
   const [swishLoading, setSwishLoading] = useState(false);
   const [swishError, setSwishError] = useState<string | null>(null);
   const [swishPaymentId, setSwishPaymentId] = useState<string | null>(null);
+  const [swishDeepLink, setSwishDeepLink] = useState<string | null>(null);
   const [isDesktopUser, setIsDesktopUser] = useState(false);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -159,15 +160,13 @@ export default function SwishPaymentGateway({
       );
 
       setSwishPaymentId(result.paymentId);
+      setSwishDeepLink(result.deepLink);
 
       const mobile = isMobileDevice();
       setIsDesktopUser(!mobile);
 
-      if (mobile) {
-        // Open Swish app on phone
-        openSwishApp(result.deepLink);
-      }
-
+      // Show the waiting screen FIRST — user taps "Open Swish" button explicitly
+      // Auto-navigating causes a blank white screen on iOS Safari
       setStep("bankid");
       setSwishLoading(false);
 
@@ -215,6 +214,30 @@ export default function SwishPaymentGateway({
       }
     };
   }, []);
+
+  // When user returns from Swish app to browser, immediately check status
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === "visible" && swishPaymentId && step === "bankid") {
+        try {
+          const statusResult = await checkSwishPaymentStatus(swishPaymentId);
+          if (statusResult.status === "PAID") {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setStep("success");
+            onPaymentSuccess(customerName || "Guest User", vendorShare, platformFee, "Swish");
+          } else if (["DECLINED", "CANCELLED", "ERROR"].includes(statusResult.status)) {
+            if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setSwishError(`Betalning misslyckades: ${statusResult.status}. Försök igen.`);
+            setStep("details");
+          }
+        } catch { /* keep polling */ }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [swishPaymentId, step, customerName, vendorShare, platformFee, onPaymentSuccess]);
 
   const handleKeyPress = (_num: string) => {
     // No-op: real Swish handles PIN/biometric inside the Swish app itself
@@ -668,10 +691,10 @@ export default function SwishPaymentGateway({
             </div>
 
             {/* Waiting / instruction */}
-            <div className="flex flex-col items-center gap-4 py-4">
-              <Loader2 className="w-10 h-10 text-sky-400 animate-spin" />
+            <div className="flex flex-col items-center gap-4 py-2">
               {isDesktopUser ? (
                 <div className="text-center space-y-2">
+                  <Smartphone className="w-10 h-10 text-zinc-500 mx-auto" />
                   <p className="text-sm font-black text-white">Öppna Swish på din mobil</p>
                   <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
                     Swish fungerar bara på mobila enheter.<br />
@@ -679,14 +702,35 @@ export default function SwishPaymentGateway({
                   </p>
                 </div>
               ) : (
-                <div className="text-center space-y-2">
-                  <p className="text-sm font-black text-white">Godkänn i Swish-appen</p>
-                  <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
-                    Swish-appen har öppnats på din telefon.<br />
-                    Godkänn betalningen med Face ID eller fingeravtryck.
-                  </p>
-                  <p className="text-[9px] text-zinc-600 font-mono mt-2">
-                    Väntar på bekräftelse...
+                <div className="w-full space-y-3">
+                  <div className="text-center space-y-1">
+                    <p className="text-xs font-bold text-zinc-300">Betalningsförfrågan skapad ✓</p>
+                    <p className="text-[9px] text-zinc-500 font-semibold">
+                      Tryck på knappen nedan för att öppna Swish-appen
+                    </p>
+                  </div>
+
+                  {/* Primary CTA — open Swish */}
+                  {swishDeepLink && (
+                    <button
+                      onClick={() => openSwishApp(swishDeepLink)}
+                      className="w-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-display font-black py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2.5 text-sm cursor-pointer"
+                    >
+                      <Smartphone className="w-5 h-5" />
+                      Öppna Swish-appen
+                    </button>
+                  )}
+
+                  <div className="flex items-center gap-2 justify-center">
+                    <Loader2 className="w-3.5 h-3.5 text-zinc-600 animate-spin" />
+                    <p className="text-[9px] text-zinc-600 font-mono">
+                      Väntar på betalningsbekräftelse...
+                    </p>
+                  </div>
+
+                  <p className="text-[8.5px] text-zinc-600 text-center font-semibold leading-relaxed">
+                    Efter att du godkänt betalningen i Swish — kom tillbaka hit.<br />
+                    Sidan uppdateras automatiskt.
                   </p>
                 </div>
               )}
