@@ -7,7 +7,6 @@ import {
   X, 
   Smartphone, 
   User, 
-  Phone, 
   Shield, 
   Lock, 
   CheckCircle2, 
@@ -54,7 +53,6 @@ export default function SwishPaymentGateway({
 }: SwishPaymentGatewayProps) {
   const [step, setStep] = useState<PaymentStep>("details");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("swish");
-  const [phoneNumber, setPhoneNumber] = useState("070-123 45 67");
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pin, setPin] = useState<string>("");
   const [confetti, setConfetti] = useState<{ id: number; x: number; y: number; color: string; size: number; delay: number }[]>([]);
@@ -124,27 +122,11 @@ export default function SwishPaymentGateway({
 
   if (!isOpen) return null;
 
-  const validateSwedishSwish = (numberStr: string) => {
-    // Strip all non-digit characters
-    let digits = numberStr.replace(/\D/g, "");
-    
-    // Normalize Swedish country code e.g. 46701234567 -> 0701234567
-    if (digits.startsWith("467") && digits.length === 11) {
-      digits = "0" + digits.substring(2);
-    }
-    
-    // Swedish Swish numbers are exactly 10 digits and must start with either '07' or '123'
-    return digits.length === 10 && (digits.startsWith("07") || digits.startsWith("123"));
-  };
+
 
   const handleOpenBankID = async () => {
     if (!customerName.trim()) {
       onCustomerNameChange("Guest Guestson");
-    }
-
-    if (!validateSwedishSwish(phoneNumber)) {
-      setValidationError("Vänligen ange ett giltigt 10-siffrigt svenskt Swish-nummer (t.ex. 07X-XXX XX XX eller 123 XXX XX XX).");
-      return;
     }
 
     setValidationError(null);
@@ -432,32 +414,7 @@ export default function SwishPaymentGateway({
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[9px] text-zinc-400 font-bold uppercase flex items-center gap-1 font-mono">
-                    <Phone className="w-3 h-3 text-zinc-400" />
-                    Swish-nummer (Mobile)
-                  </label>
-                  <input
-                    type="text"
-                    value={phoneNumber}
-                    onChange={(e) => {
-                      setPhoneNumber(e.target.value);
-                      if (validationError) setValidationError(null);
-                    }}
-                    className={`w-full bg-white border-2 rounded-xl px-3 py-2 text-xs text-zinc-850 focus:outline-none font-bold font-mono transition-all ${
-                      validationError 
-                        ? "border-rose-500 focus:border-rose-600 bg-rose-50/10" 
-                        : "border-zinc-200 focus:border-sky-500"
-                    }`}
-                    placeholder="070-000 00 00"
-                    id="swish-input-phone"
-                  />
-                  {validationError && (
-                    <p className="text-[10px] text-rose-600 font-extrabold mt-1 leading-snug animate-fadeIn">
-                      ⚠️ {validationError}
-                    </p>
-                  )}
-                </div>
+
 
                 <div className="bg-sky-50 border border-sky-100 rounded-xl p-2.5 flex gap-2 items-start">
                   <Shield className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
