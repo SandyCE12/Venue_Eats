@@ -10,13 +10,11 @@ import {
   MapPin, 
   ChevronRight, 
   Utensils, 
-  Store, 
   CreditCard, 
   Smartphone, 
-  Clock, 
-  Sparkles,
-  ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Wallet,
+  Check
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { MenuItem, ExtraOption } from "../types";
@@ -42,13 +40,17 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
     setActiveTable,
     vendors,
     activeVendorId,
-    orders
+    orders,
+    customerName,
+    setCustomerName,
   } = useApp();
 
   const [orderNotes, setOrderNotes] = useState<string>("");
   const [diningOption, setDiningOption] = useState<"dine-in" | "takeaway">("dine-in");
   const [tableInput, setTableInput] = useState<string>(activeTable || "");
   const [isEditingTable, setIsEditingTable] = useState<boolean>(false);
+  const [paymentMode, setPaymentMode] = useState<"swish" | "card" | "apple">("swish");
+  const [showMethodSelector, setShowMethodSelector] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -127,7 +129,7 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
     >
       <div
         id="cart-popout-page"
-        className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[92vh] text-left transition-all animate-in fade-in zoom-in-95 duration-200"
+        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col max-h-[92vh] text-left transition-all animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* POP-OUT HEADER */}
@@ -424,43 +426,186 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
 
         {/* POP-OUT FOOTER ACTIONS */}
         {cartEntries.length > 0 && (
-          <div className="p-4 sm:p-6 bg-zinc-50 border-t border-zinc-200 space-y-3">
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              {/* PRIMARY SWISH BUTTON */}
+          <div className="p-4 sm:p-5 bg-zinc-50 border-t border-zinc-200 space-y-3">
+
+            {/* SINGLE PAY BUTTON */}
+            <div className="flex flex-col sm:flex-row items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onProceedToSwish();
-                }}
+                onClick={() => setShowMethodSelector(true)}
                 className="w-full sm:flex-1 bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-4 rounded-2xl transition-all shadow-lg shadow-orange-500/25 cursor-pointer flex items-center justify-center gap-2"
               >
-                <Smartphone className="w-4 h-4" />
-                <span>Pay with Swish • {getSubtotal()} SEK</span>
+                <span>Betala • {getSubtotal()} SEK</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
-
-              {/* CONTINUE SHOPPING */}
               <button
                 type="button"
                 onClick={onClose}
                 className="w-full sm:w-auto bg-white hover:bg-zinc-100 text-zinc-700 font-display font-bold text-xs px-4 py-4 rounded-2xl border border-zinc-200 transition-colors cursor-pointer text-center"
               >
-                + Add More Food
+                + Lägg till mer
               </button>
             </div>
 
             <div className="flex items-center justify-center gap-4 text-[10px] font-mono text-zinc-500">
               <span className="flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Instant Verified Swish
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Säker betalning
               </span>
               <span>•</span>
-              <span>Next Queue Token: #{nextQueueNumber}</span>
+              <span>Könummer: #{nextQueueNumber}</span>
               <span>•</span>
               <span>Direct Kitchen Push</span>
             </div>
           </div>
         )}
+
+        {/* PAYMENT METHOD SELECTOR OVERLAY */}
+        {showMethodSelector && (
+          <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center rounded-3xl">
+            <div className="w-full bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl">
+
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-black text-lg text-zinc-900">Välj betalningssätt</h3>
+                  <p className="text-xs text-zinc-500 font-medium">Totalt att betala: {getSubtotal()} SEK</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMethodSelector(false)}
+                  className="text-zinc-400 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* SWISH OPTION */}
+              <div
+                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
+                  paymentMode === "swish"
+                    ? "border-sky-400 bg-sky-50"
+                    : "border-zinc-200 hover:border-zinc-300 bg-white"
+                }`}
+                onClick={() => setPaymentMode("swish")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    paymentMode === "swish" ? "bg-sky-500 text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}>
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display font-black text-sm text-zinc-900">Swish</p>
+                    <p className="text-[10px] text-zinc-500 font-medium">Snabbast — betala direkt i Swish-appen</p>
+                  </div>
+                  {paymentMode === "swish" && (
+                    <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Name input — only when Swish is selected */}
+                {paymentMode === "swish" && (
+                  <div
+                    className="mt-3 pt-3 border-t border-sky-200 space-y-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
+                      Namn på biljetten (för upphämtning)
+                    </label>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Ditt förnamn..."
+                      className="w-full bg-white border border-sky-200 rounded-xl px-3 py-2.5 text-sm font-bold text-zinc-900 focus:outline-none focus:border-sky-400 transition-colors"
+                      autoFocus
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* CARD OPTION */}
+              <div
+                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
+                  paymentMode === "card"
+                    ? "border-zinc-800 bg-zinc-50"
+                    : "border-zinc-200 hover:border-zinc-300 bg-white"
+                }`}
+                onClick={() => setPaymentMode("card")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    paymentMode === "card" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}>
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display font-black text-sm text-zinc-900">Kortbetalning</p>
+                    <p className="text-[10px] text-zinc-500 font-medium">Visa, Mastercard, Amex</p>
+                  </div>
+                  {paymentMode === "card" && (
+                    <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* APPLE PAY OPTION */}
+              <div
+                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
+                  paymentMode === "apple"
+                    ? "border-zinc-800 bg-zinc-50"
+                    : "border-zinc-200 hover:border-zinc-300 bg-white"
+                }`}
+                onClick={() => setPaymentMode("apple")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    paymentMode === "apple" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
+                  }`}>
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-display font-black text-sm text-zinc-900">Apple Pay</p>
+                    <p className="text-[10px] text-zinc-500 font-medium">Betala snabbt med Face ID</p>
+                  </div>
+                  {paymentMode === "apple" && (
+                    <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CONFIRM PAYMENT BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMethodSelector(false);
+                  onClose();
+                  onProceedToSwish();
+                }}
+                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-4 rounded-2xl transition-all shadow-lg shadow-orange-500/25 cursor-pointer flex items-center justify-center gap-2"
+              >
+                {paymentMode === "swish" && <Smartphone className="w-4 h-4" />}
+                {paymentMode === "card" && <CreditCard className="w-4 h-4" />}
+                {paymentMode === "apple" && <Wallet className="w-4 h-4" />}
+                <span>
+                  {paymentMode === "swish"
+                    ? "Fortsätt med Swish"
+                    : paymentMode === "card"
+                    ? "Fortsätt med Kort"
+                    : "Fortsätt med Apple Pay"}{" "}
+                  • {getSubtotal()} SEK
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>,
     document.body

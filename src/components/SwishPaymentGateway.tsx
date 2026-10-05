@@ -667,15 +667,16 @@ export default function SwishPaymentGateway({
                     </p>
                   </div>
 
-                  {/* Primary CTA — open Swish */}
+                  {/* Primary CTA — open Swish via native link (no blank screen) */}
                   {swishDeepLink && (
-                    <button
-                      onClick={() => openSwishApp(swishDeepLink)}
+                    <a
+                      href={swishDeepLink}
                       className="w-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-display font-black py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2.5 text-sm cursor-pointer"
+                      style={{ textDecoration: "none" }}
                     >
                       <Smartphone className="w-5 h-5" />
                       Öppna Swish-appen
-                    </button>
+                    </a>
                   )}
 
                   <div className="flex items-center gap-2 justify-center">
