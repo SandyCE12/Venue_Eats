@@ -1,11 +1,23 @@
 import React, { useState, useEffect } from "react";
 import { Vendor } from "../types";
-import { Settings, Save, AlertCircle, Phone, Info, MapPin, Key, Mail, Sparkles } from "lucide-react";
+import { Settings, Save, AlertCircle, Phone, Info, MapPin, Key, Mail, Sparkles, Landmark, ShieldCheck, ChevronDown, ChevronUp } from "lucide-react";
 
 interface VendorSettingsProps {
   vendor: Vendor;
   onUpdateVendorProfile: (vendorId: string, updatedFields: Partial<Vendor>) => Promise<void>;
 }
+
+const SWEDISH_BANKS = [
+  "SEB (Skandinaviska Enskilda Banken)",
+  "Swedbank",
+  "Handelsbanken",
+  "Nordea",
+  "Länsförsäkringar Bank",
+  "Danske Bank",
+  "ICA Banken",
+  "SBAB",
+  "Other / Annan bank"
+];
 
 export default function VendorSettings({ vendor, onUpdateVendorProfile }: VendorSettingsProps) {
   const [name, setName] = useState(vendor.name || "");
@@ -16,6 +28,24 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
   const [pin, setPin] = useState(vendor.pin || "");
   const [email, setEmail] = useState(vendor.email || "");
   const [logo, setLogo] = useState(vendor.logo || "🍛");
+
+  // Bank details state
+  const isPredefinedBank = SWEDISH_BANKS.some(b => b === vendor.bankName);
+  const [selectedBank, setSelectedBank] = useState(
+    vendor.bankName ? (isPredefinedBank ? vendor.bankName : "Other / Annan bank") : "SEB (Skandinaviska Enskilda Banken)"
+  );
+  const [customBankName, setCustomBankName] = useState(
+    vendor.bankName && !isPredefinedBank ? vendor.bankName : ""
+  );
+  const [bankClearingNumber, setBankClearingNumber] = useState(vendor.bankClearingNumber || "");
+  const [bankAccountNumber, setBankAccountNumber] = useState(vendor.bankAccountNumber || "");
+  const [bankAccountHolder, setBankAccountHolder] = useState(vendor.bankAccountHolder || vendor.name || "");
+  const [bankGiro, setBankGiro] = useState(vendor.bankGiro || "");
+  const [plusGiro, setPlusGiro] = useState(vendor.plusGiro || "");
+  const [bankIban, setBankIban] = useState(vendor.bankIban || "");
+  const [bankBicSwift, setBankBicSwift] = useState(vendor.bankBicSwift || "");
+  const [showSepaFields, setShowSepaFields] = useState(Boolean(vendor.bankIban || vendor.bankBicSwift));
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -30,6 +60,21 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
     setPin(vendor.pin || "");
     setEmail(vendor.email || "");
     setLogo(vendor.logo || "🍛");
+
+    const isPredefined = SWEDISH_BANKS.some(b => b === vendor.bankName);
+    setSelectedBank(
+      vendor.bankName ? (isPredefined ? vendor.bankName : "Other / Annan bank") : "SEB (Skandinaviska Enskilda Banken)"
+    );
+    setCustomBankName(vendor.bankName && !isPredefined ? vendor.bankName : "");
+    setBankClearingNumber(vendor.bankClearingNumber || "");
+    setBankAccountNumber(vendor.bankAccountNumber || "");
+    setBankAccountHolder(vendor.bankAccountHolder || vendor.name || "");
+    setBankGiro(vendor.bankGiro || "");
+    setPlusGiro(vendor.plusGiro || "");
+    setBankIban(vendor.bankIban || "");
+    setBankBicSwift(vendor.bankBicSwift || "");
+    setShowSepaFields(Boolean(vendor.bankIban || vendor.bankBicSwift));
+
     setError(null);
     setSuccess(false);
   }, [vendor]);
@@ -52,6 +97,10 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
       return;
     }
 
+    const resolvedBankName = selectedBank === "Other / Annan bank" 
+      ? (customBankName.trim() || "Other Bank") 
+      : selectedBank;
+
     setIsSaving(true);
     try {
       await onUpdateVendorProfile(vendor.id, {
@@ -62,7 +111,16 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
         swishNumber: swishNumber.trim(),
         pin: pin.trim(),
         email: email.trim().toLowerCase(),
-        logo
+        logo,
+        // Bank settlement details
+        bankName: resolvedBankName,
+        bankClearingNumber: bankClearingNumber.trim(),
+        bankAccountNumber: bankAccountNumber.trim(),
+        bankAccountHolder: bankAccountHolder.trim(),
+        bankGiro: bankGiro.trim(),
+        plusGiro: plusGiro.trim(),
+        bankIban: bankIban.trim(),
+        bankBicSwift: bankBicSwift.trim()
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
@@ -81,9 +139,9 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
             <Settings className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-sm font-black uppercase tracking-wider text-white">Stall Profile Settings</h2>
+            <h2 className="text-sm font-black uppercase tracking-wider text-white">Stall Profile & Payout Settings</h2>
             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono">
-              Configure payments, location, and authentication credentials
+              Configure Swish payouts, bank settlement account, and stall credentials
             </p>
           </div>
         </div>
@@ -91,28 +149,217 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Swish Payout Section - Highlighted & Crucial */}
+        {/* Swish Payout Section */}
         <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-emerald-400">
-            <Phone className="w-4 h-4" />
-            <h3 className="text-xs font-black uppercase tracking-wider">Swish Handel Integration</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-400">
+              <Phone className="w-4 h-4" />
+              <h3 className="text-xs font-black uppercase tracking-wider">Swish Handel Integration</h3>
+            </div>
+            <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase">
+              Instant Split Routing
+            </span>
           </div>
           <p className="text-[10.5px] text-zinc-300 leading-relaxed font-medium">
-            This Swish phone number is used for <strong>real-time, split payouts</strong>. When customers pay via Swish, Stockholm organizers route funds directly to the account tied to this Swish number, minus the commission fee.
+            This Swish number receives <strong>direct, real-time payouts (96.5%)</strong> when festival attendees pay with Swish at your booth.
           </p>
           
           <div className="space-y-1.5 pt-1">
             <label className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider font-mono block">
-              Active Swish Payout Number
+              Active Swish Merchant Number
             </label>
             <input
               type="text"
-              placeholder="e.g., 123 456 78 90"
+              placeholder="e.g., 123 918 27 36"
               value={swishNumber}
               onChange={(e) => setSwishNumber(e.target.value)}
               className="w-full bg-zinc-950 border-2 border-zinc-800 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm font-mono text-emerald-300 font-black tracking-widest focus:outline-none transition-all"
               required
             />
+          </div>
+        </div>
+
+        {/* BANK SETTLEMENT ACCOUNT SECTION */}
+        <div className="bg-sky-500/5 border border-sky-500/20 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sky-400">
+              <Landmark className="w-4 h-4" />
+              <h3 className="text-xs font-black uppercase tracking-wider">Bankkonto &amp; Avräkning (Bank Settlement)</h3>
+            </div>
+            <span className="text-[9px] bg-sky-500/20 text-sky-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-sky-400" /> Direct Wire Settlement
+            </span>
+          </div>
+
+          <p className="text-[10.5px] text-zinc-300 leading-relaxed font-medium">
+            Your registered Swedish bank account for daily event revenue transfers, card payment settlements (Visa/Mastercard), and official Skatteverket-compliant fiscal accounting.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {/* Bank Name Selector */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
+                Bank (Banknamn)
+              </label>
+              <select
+                value={selectedBank}
+                onChange={(e) => setSelectedBank(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 font-bold focus:outline-none cursor-pointer"
+              >
+                {SWEDISH_BANKS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Custom Bank Name if "Other" */}
+            {selectedBank === "Other / Annan bank" ? (
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
+                  Specific Bank Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Marginalen Bank"
+                  value={customBankName}
+                  onChange={(e) => setCustomBankName(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 font-bold focus:outline-none"
+                />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
+                  Kontoinnehavare / Bolagsnamn (Account Holder)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Delhi Street Sensation AB"
+                  value={bankAccountHolder}
+                  onChange={(e) => setBankAccountHolder(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 font-bold focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+
+          {selectedBank === "Other / Annan bank" && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono block">
+                Kontoinnehavare / Bolagsnamn (Account Holder)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., Delhi Street Sensation AB"
+                value={bankAccountHolder}
+                onChange={(e) => setBankAccountHolder(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 font-bold focus:outline-none"
+              />
+            </div>
+          )}
+
+          {/* Clearing Number & Account Number Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-sky-300 font-bold uppercase tracking-wider font-mono flex items-center justify-between">
+                <span>Clearingnummer (4-5 siffror)</span>
+                <span className="text-[9px] text-zinc-500 font-normal">e.g. 5051 / 8327-9</span>
+              </label>
+              <input
+                type="text"
+                maxLength={8}
+                placeholder="e.g., 5051"
+                value={bankClearingNumber}
+                onChange={(e) => setBankClearingNumber(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-zinc-100 font-bold focus:outline-none tracking-wider"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-sky-300 font-bold uppercase tracking-wider font-mono flex items-center justify-between">
+                <span>Kontonummer (Account Number)</span>
+                <span className="text-[9px] text-zinc-500 font-normal">e.g. 123 456 789-0</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., 1234 567 890"
+                value={bankAccountNumber}
+                onChange={(e) => setBankAccountNumber(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-xs font-mono text-zinc-100 font-bold focus:outline-none tracking-wider"
+              />
+            </div>
+          </div>
+
+          {/* Bankgiro / Plusgiro Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono flex items-center justify-between">
+                <span>Bankgiro (Valfritt)</span>
+                <span className="text-[9px] text-zinc-500">e.g. 5051-6999</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., 5051-6999"
+                value={bankGiro}
+                onChange={(e) => setBankGiro(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-850 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-zinc-200 font-bold focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono flex items-center justify-between">
+                <span>Plusgiro (Valfritt)</span>
+                <span className="text-[9px] text-zinc-500">e.g. 12 34 56-7</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., 12 34 56-7"
+                value={plusGiro}
+                onChange={(e) => setPlusGiro(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-850 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-zinc-200 font-bold focus:outline-none"
+              />
+            </div>
+          </div>
+
+          {/* Collapsible International SEPA / IBAN details */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowSepaFields(!showSepaFields)}
+              className="text-[10px] text-zinc-400 hover:text-sky-300 font-mono font-bold flex items-center gap-1 transition-colors cursor-pointer"
+            >
+              {showSepaFields ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <span>{showSepaFields ? "Dölj internationella bankuppgifter (Hide IBAN / SWIFT)" : "+ Lägg till internationella bankuppgifter (IBAN & SWIFT/BIC)"}</span>
+            </button>
+
+            {showSepaFields && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 animate-fadeIn">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono">
+                    IBAN (International Account)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., SE45 5000 0000 0505 1699 9000"
+                    value={bankIban}
+                    onChange={(e) => setBankIban(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-zinc-200 font-bold focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-mono">
+                    BIC / SWIFT Kod
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g., ESSEESSX"
+                    value={bankBicSwift}
+                    onChange={(e) => setBankBicSwift(e.target.value.toUpperCase())}
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-sky-500 rounded-xl px-3.5 py-2 text-xs font-mono text-zinc-200 font-bold focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -246,7 +493,7 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
         {success && (
           <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl text-xs font-bold leading-relaxed flex items-start gap-2 animate-fadeIn">
             <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400 animate-pulse" />
-            <span>✓ Stall Profile updated! Changes synced instantly.</span>
+            <span>✓ Stall Profile &amp; Bank Details updated! Changes synced instantly.</span>
           </div>
         )}
 

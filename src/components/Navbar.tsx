@@ -338,22 +338,73 @@ export const Navbar: React.FC = () => {
 };
 
 export const Footer: React.FC = () => {
+  const [showLicense, setShowLicense] = React.useState(false);
+
   return (
-    <footer className="bg-zinc-950 text-zinc-400 border-t border-zinc-800 py-8 text-xs font-mono text-center mt-auto">
-      <div className="max-w-7xl mx-auto px-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-center gap-6 text-zinc-300 font-bold">
-          <Link to="/" className="hover:text-orange-400 transition-colors">Attendee Menu</Link>
-          <span>•</span>
-          <Link to="/vendor" className="hover:text-orange-400 transition-colors">Vendor Terminal</Link>
-          <span>•</span>
-          <Link to="/admin" className="hover:text-orange-400 transition-colors">Event Organizer Admin</Link>
-          <span>•</span>
-          <Link to="/super-admin" className="hover:text-orange-400 transition-colors">Super Admin Console</Link>
+    <>
+      <footer className="bg-zinc-950 text-zinc-400 border-t border-zinc-800 py-8 text-xs font-mono text-center mt-auto">
+        <div className="max-w-7xl mx-auto px-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-center gap-6 text-zinc-300 font-bold">
+            <Link to="/" className="hover:text-orange-400 transition-colors">Attendee Menu</Link>
+            <span>•</span>
+            <Link to="/vendor" className="hover:text-orange-400 transition-colors">Vendor Terminal</Link>
+            <span>•</span>
+            <Link to="/admin" className="hover:text-orange-400 transition-colors">Event Organizer Admin</Link>
+            <span>•</span>
+            <Link to="/super-admin" className="hover:text-orange-400 transition-colors">Super Admin Console</Link>
+            <span>•</span>
+            <button 
+              type="button" 
+              onClick={() => setShowLicense(true)}
+              className="hover:text-orange-400 transition-colors cursor-pointer text-zinc-400 hover:underline"
+            >
+              GPLv2 License
+            </button>
+          </div>
+          <p className="text-zinc-500 font-semibold uppercase tracking-wider text-[11px]">
+            VenueEat Stockholm • Licensed under GNU General Public License v2 (GPL-2.0)
+          </p>
         </div>
-        <p className="text-zinc-500 font-semibold uppercase tracking-wider text-[11px]">
-          VenueEat Stockholm • Real-time Swish & Stripe Merchant Checkout
-        </p>
-      </div>
-    </footer>
+      </footer>
+
+      {showLicense && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-700 text-zinc-200 rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl overflow-hidden text-left">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-white">GNU General Public License, Version 2</h3>
+              <button 
+                type="button"
+                onClick={() => setShowLicense(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto text-xs font-mono whitespace-pre-wrap leading-relaxed text-zinc-300 select-text">
+{`Note that the only valid version of the GPL as far as this project is concerned is this particular version of the license (ie v2, not v2.2 or v3.x or whatever), unless explicitly otherwise stated.
+
+GNU GENERAL PUBLIC LICENSE
+Version 2, June 1991
+
+Copyright (C) 1989, 1991 Free Software Foundation, Inc.
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; version 2.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the COPYING or LICENSE file for complete terms.`}
+            </div>
+            <div className="p-3 border-t border-zinc-800 flex justify-end">
+              <button 
+                type="button"
+                onClick={() => setShowLicense(false)}
+                className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

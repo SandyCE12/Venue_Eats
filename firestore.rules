@@ -22,7 +22,7 @@ service cloud.firestore {
     // Entity Validators
     function isValidVendor(data) {
       return data.keys().hasAll(['id', 'name', 'cuisine', 'logo', 'rating', 'menu'])
-        && data.keys().size() <= 30
+        && data.keys().size() <= 50
         && data.id is string && data.id.size() <= 128
         && data.name is string && data.name.size() <= 100
         && data.cuisine is string && data.cuisine.size() <= 100
@@ -32,10 +32,20 @@ service cloud.firestore {
         && (!('location' in data) || (data.location is string && data.location.size() <= 150))
         && (!('pin' in data) || (data.pin is string && data.pin.size() <= 50))
         && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
         && (!('swishNumber' in data) || (data.swishNumber is string && data.swishNumber.size() <= 50))
         && (!('stallNumber' in data) || (data.stallNumber is string && data.stallNumber.size() <= 50))
         && (!('description' in data) || (data.description is string && data.description.size() <= 500))
-        && (!('isApproved' in data) || (data.isApproved is bool || data.isApproved is string));
+        && (!('isApproved' in data) || (data.isApproved is bool || data.isApproved is string))
+        && (!('bankName' in data) || (data.bankName is string && data.bankName.size() <= 100))
+        && (!('bankClearingNumber' in data) || (data.bankClearingNumber is string && data.bankClearingNumber.size() <= 50))
+        && (!('bankAccountNumber' in data) || (data.bankAccountNumber is string && data.bankAccountNumber.size() <= 50))
+        && (!('bankAccountHolder' in data) || (data.bankAccountHolder is string && data.bankAccountHolder.size() <= 150))
+        && (!('bankIban' in data) || (data.bankIban is string && data.bankIban.size() <= 50))
+        && (!('bankBicSwift' in data) || (data.bankBicSwift is string && data.bankBicSwift.size() <= 50))
+        && (!('bankGiro' in data) || (data.bankGiro is string && data.bankGiro.size() <= 50))
+        && (!('plusGiro' in data) || (data.plusGiro is string && data.plusGiro.size() <= 50))
+        && (!('invoices' in data) || (data.invoices is list && data.invoices.size() <= 200));
     }
 
     function isValidOrder(data) {

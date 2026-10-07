@@ -30,9 +30,16 @@ import {
   LogOut,
   UserCheck,
   ShieldAlert,
-  KeyRound
+  KeyRound,
+  Copy,
+  Eye,
+  EyeOff,
+  Edit3,
+  ExternalLink,
+  Save,
+  Sliders
 } from "lucide-react";
-import type { ManagedEvent, EventStatus } from "../types";
+import type { ManagedEvent, EventStatus, EventAdminPermissions } from "../types";
 
 interface SuperAdminConsoleProps {
   managedEvents?: ManagedEvent[];
@@ -42,6 +49,7 @@ interface SuperAdminConsoleProps {
   onSelectActiveEvent?: (eventId: string) => void;
   onAddNewEvent: (newEvent: ManagedEvent) => void;
   onUpdateEventStatus: (eventId: string, status: EventStatus) => void;
+  onUpdateEvent?: (updatedEvent: ManagedEvent) => void;
   onUpdateEventMap?: () => void;
 }
 
@@ -53,6 +61,7 @@ export default function SuperAdminConsole({
   onSelectActiveEvent,
   onAddNewEvent,
   onUpdateEventStatus,
+  onUpdateEvent,
 }: SuperAdminConsoleProps) {
   const events = managedEvents || passedEvents || [];
   const handleSelectEvent = onSelectEvent || onSelectActiveEvent || (() => {});
@@ -62,7 +71,7 @@ export default function SuperAdminConsole({
   const [loginPassword, setLoginPassword] = useState("superadmin123");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"live" | "history" | "create">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "credentials" | "history" | "create">("live");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Live" | "Scheduled" | "Completed">("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
@@ -70,6 +79,33 @@ export default function SuperAdminConsole({
 
   // Selected event for detail inspection modal
   const [inspectEvent, setInspectEvent] = useState<ManagedEvent | null>(null);
+
+  // Selected event for editing details & credentials modal
+  const [editEvent, setEditEvent] = useState<ManagedEvent | null>(null);
+  const [editTab, setEditTab] = useState<"details" | "credentials">("details");
+  const [showPasswordMap, setShowPasswordMap] = useState<{ [id: string]: boolean }>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Edit Event Form state
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [editStatus, setEditStatus] = useState<EventStatus>("Live");
+  const [editLocation, setEditLocation] = useState("");
+  const [editAttendees, setEditAttendees] = useState("25000");
+  const [editStartDate, setEditStartDate] = useState("2026-05-23");
+  const [editEndDate, setEditEndDate] = useState("2026-05-23");
+  const [editSwishId, setEditSwishId] = useState("");
+  const [editCategory, setEditCategory] = useState<ManagedEvent["category"]>("Cultural & Food");
+  const [editDescription, setEditDescription] = useState("");
+  const [editMapImageUrl, setEditMapImageUrl] = useState("");
+  const [editAdminName, setEditAdminName] = useState("");
+  const [editAdminEmail, setEditAdminEmail] = useState("");
+  const [editAdminPassword, setEditAdminPassword] = useState("");
+  const [editPermDetails, setEditPermDetails] = useState(true);
+  const [editPermVendors, setEditPermVendors] = useState(true);
+  const [editPermMap, setEditPermMap] = useState(true);
+  const [editPermFinancials, setEditPermFinancials] = useState(true);
+  const [editSuccessMsg, setEditSuccessMsg] = useState<string | null>(null);
 
   // Feedback for download
   const [downloaded, setDownloaded] = useState(false);
@@ -84,9 +120,119 @@ export default function SuperAdminConsole({
   const [formSwishId, setFormSwishId] = useState("123 992 10 44");
   const [formCategory, setFormCategory] = useState<ManagedEvent["category"]>("Cultural & Food");
   const [formEmail, setFormEmail] = useState("organizer@stockholmevents.se");
+  const [formAdminName, setFormAdminName] = useState("Festival Operations Director");
+  const [formAdminPassword, setFormAdminPassword] = useState("eventadmin2026");
+  const [formPermDetails, setFormPermDetails] = useState(true);
+  const [formPermVendors, setFormPermVendors] = useState(true);
+  const [formPermMap, setFormPermMap] = useState(true);
+  const [formPermFinancials, setFormPermFinancials] = useState(true);
   const [formDescription, setFormDescription] = useState("");
   const [formMapImageUrl, setFormMapImageUrl] = useState("");
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  // Helper to open Edit Event Details & Admin Access modal
+  const handleOpenEditModal = (evt: ManagedEvent, initialTab: "details" | "credentials" = "details") => {
+    setEditEvent(evt);
+    setEditTab(initialTab);
+    setEditName(evt.name);
+    setEditCode(evt.code);
+    setEditStatus(evt.status);
+    setEditLocation(evt.location);
+    setEditAttendees(evt.attendeesCount.toString());
+    setEditStartDate(evt.startDate);
+    setEditEndDate(evt.endDate);
+    setEditSwishId(evt.swishMerchantId);
+    setEditCategory(evt.category);
+    setEditDescription(evt.description);
+    setEditMapImageUrl(evt.mapImageUrl || "");
+    setEditAdminName(evt.adminName || "Event Organizer");
+    setEditAdminEmail(evt.organizerEmail);
+    setEditAdminPassword(evt.adminPassword || "admin123");
+    setEditPermDetails(evt.adminPermissions?.canEditDetails !== false);
+    setEditPermVendors(evt.adminPermissions?.canManageVendors !== false);
+    setEditPermMap(evt.adminPermissions?.canManageMap !== false);
+    setEditPermFinancials(evt.adminPermissions?.canViewFinancials !== false);
+    setEditSuccessMsg(null);
+  };
+
+  // Helper to generate a fresh password
+  const generateNewPassword = () => {
+    const words = ["Nordic", "Stockholm", "Venue", "Festival", "Viking", "Gateway"];
+    const chosenWord = words[Math.floor(Math.random() * words.length)];
+    const num = Math.floor(1000 + Math.random() * 9000);
+    return `${chosenWord}-${num}`;
+  };
+
+  // Helper to copy handover note
+  const handleCopyCredentials = (evt: ManagedEvent) => {
+    const portalUrl = `${window.location.origin}/admin`;
+    const pwd = evt.adminPassword || "admin123";
+    const perms = [
+      evt.adminPermissions?.canEditDetails !== false ? "Edit Details" : null,
+      evt.adminPermissions?.canManageVendors !== false ? "Vendor Approvals" : null,
+      evt.adminPermissions?.canManageMap !== false ? "Venue Map" : null,
+      evt.adminPermissions?.canViewFinancials !== false ? "Financial Audits" : null
+    ].filter(Boolean).join(", ");
+
+    const text = `VenueEat Event Admin Credentials Handover
+--------------------------------------------------
+Event: ${evt.name} (${evt.code})
+Venue Location: ${evt.location}
+Dates: ${evt.startDate} to ${evt.endDate}
+Admin Portal URL: ${portalUrl}
+Login ID (Email): ${evt.organizerEmail}
+Password: ${pwd}
+Assigned Lead: ${evt.adminName || "Event Organizer"}
+Granted Privileges: ${perms}
+--------------------------------------------------
+Access instructions: Open the portal link, enter your Login ID & Password to manage vendors, live orders, and festival settings.`;
+
+    navigator.clipboard.writeText(text);
+    setCopiedId(evt.id);
+    setTimeout(() => setCopiedId(null), 2500);
+  };
+
+  // Handle Save Edit Form Submission
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editEvent) return;
+
+    const updated: ManagedEvent = {
+      ...editEvent,
+      name: editName.trim() || editEvent.name,
+      code: editCode.trim().toUpperCase() || editEvent.code,
+      status: editStatus,
+      location: editLocation.trim() || editEvent.location,
+      attendeesCount: parseInt(editAttendees, 10) || editEvent.attendeesCount,
+      startDate: editStartDate,
+      endDate: editEndDate,
+      swishMerchantId: editSwishId.trim() || editEvent.swishMerchantId,
+      category: editCategory,
+      description: editDescription.trim() || editEvent.description,
+      mapImageUrl: editMapImageUrl.trim() || undefined,
+      organizerEmail: editAdminEmail.trim() || editEvent.organizerEmail,
+      adminName: editAdminName.trim() || editEvent.adminName || "Event Organizer",
+      adminPassword: editAdminPassword.trim() || editEvent.adminPassword || "admin123",
+      adminPermissions: {
+        canEditDetails: editPermDetails,
+        canManageVendors: editPermVendors,
+        canManageMap: editPermMap,
+        canViewFinancials: editPermFinancials
+      }
+    };
+
+    if (onUpdateEvent) {
+      onUpdateEvent(updated);
+    }
+    if (inspectEvent && inspectEvent.id === updated.id) {
+      setInspectEvent(updated);
+    }
+    setEditSuccessMsg(`Successfully updated "${updated.name}" details and Event Admin credentials!`);
+    setTimeout(() => {
+      setEditEvent(null);
+      setEditSuccessMsg(null);
+    }, 1500);
+  };
 
   // Handle Login submission
   const handleSuperAdminLogin = (e: React.FormEvent) => {
@@ -196,7 +342,15 @@ export default function SuperAdminConsole({
       totalGmvSEK: 0,
       totalOrdersCount: 0,
       platformFeeRevenueSEK: 950, // base setup SaaS
-      organizerEmail: formEmail,
+      organizerEmail: formEmail.trim() || "organizer@stockholmevents.se",
+      adminName: formAdminName.trim() || "Festival Operations Director",
+      adminPassword: formAdminPassword.trim() || "eventadmin2026",
+      adminPermissions: {
+        canEditDetails: formPermDetails,
+        canManageVendors: formPermVendors,
+        canManageMap: formPermMap,
+        canViewFinancials: formPermFinancials
+      },
       category: formCategory,
       description: formDescription || "Newly onboarded festival event on VenueEat platform.",
       mapImageUrl: formMapImageUrl || undefined,
@@ -451,6 +605,18 @@ export default function SuperAdminConsole({
             </button>
 
             <button
+              onClick={() => setActiveTab("credentials")}
+              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "credentials"
+                  ? "bg-zinc-900 text-white shadow-md font-black"
+                  : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              <KeyRound className="w-4 h-4 text-purple-400" />
+              Event Admin Access & Logins ({events.length})
+            </button>
+
+            <button
               onClick={() => setActiveTab("history")}
               className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "history"
@@ -658,17 +824,120 @@ export default function SuperAdminConsole({
                   </div>
                 </div>
 
-                {/* Organizer Email */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-zinc-700 block font-mono uppercase tracking-wider">
-                    Organizer Contact Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    className="w-full bg-zinc-50 border-2 border-zinc-200 focus:bg-white focus:border-orange-500 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 font-semibold transition-all"
-                  />
+                {/* Event Admin Account Credentials Provisioning */}
+                <div className="bg-purple-50/70 border-2 border-purple-200 rounded-2xl p-4 md:p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-purple-200 pb-3">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-purple-600" />
+                      <h4 className="text-xs font-bold text-purple-950 uppercase font-mono tracking-wider">
+                        Provision Event Admin Login & Password
+                      </h4>
+                    </div>
+                    <span className="text-[10px] font-mono bg-purple-200/70 text-purple-900 px-2.5 py-0.5 rounded-full font-bold">
+                      Organizer Portal Access
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-purple-900/80 leading-relaxed">
+                    Set the login credentials for the on-site festival organizer. The organizer will use this Login ID (email) and Password to sign in at <strong className="text-purple-950">/admin</strong> to manage vendors, live menus, and festival settings.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-purple-950 block font-mono uppercase">
+                        Admin Lead Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Sofia Lindqvist"
+                        value={formAdminName}
+                        onChange={(e) => setFormAdminName(e.target.value)}
+                        className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl px-3 py-2 text-xs text-zinc-900 font-semibold outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-purple-950 block font-mono uppercase">
+                        Admin Login ID (Email) *
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="organizer@stockholmevents.se"
+                        value={formEmail}
+                        onChange={(e) => setFormEmail(e.target.value)}
+                        className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl px-3 py-2 text-xs text-zinc-900 font-semibold outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[11px] font-bold text-purple-950 block font-mono uppercase">
+                          Login Password *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setFormAdminPassword(generateNewPassword())}
+                          className="text-[10px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                        >
+                          Generate
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={formAdminPassword}
+                        onChange={(e) => setFormAdminPassword(e.target.value)}
+                        className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono font-bold outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Delegated Permissions */}
+                  <div className="pt-2 border-t border-purple-200/60 space-y-2">
+                    <span className="text-[11px] font-bold text-purple-950 block font-mono uppercase">
+                      Event Admin Permissions
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-purple-950">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPermDetails}
+                          onChange={(e) => setFormPermDetails(e.target.checked)}
+                          className="rounded text-purple-600 accent-purple-600"
+                        />
+                        <span className="text-[11px] font-medium">Edit Details</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPermVendors}
+                          onChange={(e) => setFormPermVendors(e.target.checked)}
+                          className="rounded text-purple-600 accent-purple-600"
+                        />
+                        <span className="text-[11px] font-medium">Manage Vendors</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPermMap}
+                          onChange={(e) => setFormPermMap(e.target.checked)}
+                          className="rounded text-purple-600 accent-purple-600"
+                        />
+                        <span className="text-[11px] font-medium">Manage Map</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formPermFinancials}
+                          onChange={(e) => setFormPermFinancials(e.target.checked)}
+                          className="rounded text-purple-600 accent-purple-600"
+                        />
+                        <span className="text-[11px] font-medium">View Financials</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -762,6 +1031,180 @@ export default function SuperAdminConsole({
                 </div>
               </form>
             </div>
+          ) : activeTab === "credentials" ? (
+            /* DEDICATED EVENT ADMIN ACCESS & CREDENTIALS DIRECTORY */
+            <div className="space-y-6">
+              {/* Directory Banner */}
+              <div className="bg-purple-950 text-white rounded-2xl p-5 md:p-6 border-2 border-purple-800 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-purple-800/80 text-purple-300 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                      <KeyRound className="w-3 h-3 text-purple-400" /> Super Admin Access Governance
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950 px-2 py-0.5 rounded-full">
+                      {events.length} Festivals Provisioned
+                    </span>
+                  </div>
+                  <h3 className="font-display font-black text-xl md:text-2xl text-white">
+                    Event Admin Access & Credentials Directory
+                  </h3>
+                  <p className="text-xs text-purple-200/80 leading-relaxed font-medium">
+                    Super Admin master directory of assigned Event Admin accounts. Each event organizer logs into <strong className="text-white">/admin</strong> with their assigned Work Email and Password to update their festival specifications and approve vendor stalls.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab("create")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-display font-black px-4 py-2.5 rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer uppercase tracking-wider shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Onboard New Event</span>
+                </button>
+              </div>
+
+              {/* Master Credentials Table / Cards */}
+              <div className="space-y-4">
+                {events.map((evt) => {
+                  const isLive = evt.status === "Live";
+                  const isCompleted = evt.status === "Completed";
+                  const isPwdVisible = showPasswordMap[evt.id];
+                  const pwd = evt.adminPassword || "admin123";
+                  const adminName = evt.adminName || "Event Organizer";
+
+                  return (
+                    <div
+                      key={evt.id}
+                      className="bg-white rounded-2xl border-2 border-zinc-200 hover:border-purple-300 p-5 shadow-xs transition-all space-y-4 flex flex-col lg:flex-row justify-between lg:items-center gap-4"
+                    >
+                      {/* Left: Event Info */}
+                      <div className="space-y-1.5 max-w-md">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded uppercase">
+                            {evt.code}
+                          </span>
+                          <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded-full uppercase ${
+                            isLive 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : isCompleted 
+                              ? "bg-zinc-100 text-zinc-600" 
+                              : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {evt.status}
+                          </span>
+                          <span className="text-[10px] text-zinc-400 font-mono">
+                            {evt.startDate}
+                          </span>
+                        </div>
+
+                        <h4 className="font-display font-black text-base md:text-lg text-zinc-950">
+                          {evt.name}
+                        </h4>
+                        <div className="text-xs text-zinc-500 flex items-center gap-1 font-medium">
+                          <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                          <span>{evt.location}</span>
+                        </div>
+                      </div>
+
+                      {/* Middle: Credentials Box */}
+                      <div className="bg-purple-50/70 border-2 border-purple-200/80 rounded-2xl p-4 space-y-2 min-w-[280px] lg:max-w-sm">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold text-purple-950 font-mono uppercase text-[10px] flex items-center gap-1">
+                            <KeyRound className="w-3.5 h-3.5 text-purple-600" /> Admin Credentials
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-mono">
+                            Lead: <strong className="text-zinc-900">{adminName}</strong>
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 font-mono text-xs">
+                          <div className="flex justify-between items-center bg-white px-3 py-1.5 rounded-xl border border-purple-100">
+                            <span className="text-zinc-500 text-[11px]">Login ID:</span>
+                            <span className="font-bold text-purple-950 truncate max-w-[180px]">{evt.organizerEmail}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center bg-white px-3 py-1.5 rounded-xl border border-purple-100">
+                            <span className="text-zinc-500 text-[11px]">Password:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-zinc-900">
+                                {isPwdVisible ? pwd : "••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setShowPasswordMap(prev => ({ ...prev, [evt.id]: !prev[evt.id] }))}
+                                className="text-purple-400 hover:text-purple-700 p-0.5 cursor-pointer"
+                                title={isPwdVisible ? "Hide password" : "Show password"}
+                              >
+                                {isPwdVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Privileges tags */}
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${
+                            evt.adminPermissions?.canEditDetails !== false 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : "bg-zinc-100 text-zinc-400 line-through"
+                          }`}>
+                            Edit Details
+                          </span>
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${
+                            evt.adminPermissions?.canManageVendors !== false 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : "bg-zinc-100 text-zinc-400 line-through"
+                          }`}>
+                            Manage Vendors
+                          </span>
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${
+                            evt.adminPermissions?.canManageMap !== false 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : "bg-zinc-100 text-zinc-400 line-through"
+                          }`}>
+                            Map & QR
+                          </span>
+                          <span className={`text-[9px] font-mono px-2 py-0.5 rounded-md font-bold ${
+                            evt.adminPermissions?.canViewFinancials !== false 
+                              ? "bg-emerald-100 text-emerald-800" 
+                              : "bg-zinc-100 text-zinc-400 line-through"
+                          }`}>
+                            Financials
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0">
+                        <button
+                          onClick={() => handleOpenEditModal(evt, "credentials")}
+                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit & Reassign Credentials</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleCopyCredentials(evt)}
+                          className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          {copiedId === evt.id ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <span className="text-emerald-700">Copied to Clipboard!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                              <span>Copy Handover Note</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
             /* EVENTS GRID DISPLAY (Live or History) */
             <div className="space-y-6">
@@ -787,6 +1230,8 @@ export default function SuperAdminConsole({
                     const isActive = evt.id === activeEventId;
                     const isLive = evt.status === "Live";
                     const isCompleted = evt.status === "Completed";
+                    const pwd = evt.adminPassword || "admin123";
+                    const isPwdVisible = showPasswordMap[evt.id];
 
                     return (
                       <div
@@ -856,6 +1301,43 @@ export default function SuperAdminConsole({
                           </div>
                         </div>
 
+                        {/* Event Admin Credentials Quick Preview Box */}
+                        <div className="bg-purple-50/70 border border-purple-200/80 rounded-xl p-2.5 text-xs space-y-1">
+                          <div className="flex justify-between items-center text-[10px] font-mono text-purple-900 font-bold">
+                            <span className="flex items-center gap-1">
+                              <KeyRound className="w-3 h-3 text-purple-600" /> Event Admin Login
+                            </span>
+                            <button
+                              onClick={() => handleCopyCredentials(evt)}
+                              className="text-purple-700 hover:text-purple-950 font-bold cursor-pointer"
+                              title="Copy Login Handover"
+                            >
+                              {copiedId === evt.id ? (
+                                <span className="text-emerald-700 flex items-center gap-0.5">
+                                  <Check className="w-2.5 h-2.5" /> Copied
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5">
+                                  <Copy className="w-2.5 h-2.5" /> Copy
+                                </span>
+                              )}
+                            </button>
+                          </div>
+                          <div className="font-mono text-[10px] text-zinc-700 truncate">
+                            ID: <strong className="text-purple-950">{evt.organizerEmail}</strong>
+                          </div>
+                          <div className="flex justify-between items-center font-mono text-[10px] text-zinc-500">
+                            <span>Pass: <strong className="text-zinc-900">{isPwdVisible ? pwd : "••••••••"}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswordMap(prev => ({ ...prev, [evt.id]: !prev[evt.id] }))}
+                              className="text-purple-500 hover:text-purple-800 cursor-pointer"
+                            >
+                              {isPwdVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+
                         {/* Historical / Highlight details */}
                         {isCompleted && evt.topVendorName && (
                           <div className="bg-amber-50/70 rounded-xl p-2.5 border border-amber-200/60 text-[10px] space-y-1">
@@ -880,24 +1362,34 @@ export default function SuperAdminConsole({
                         </div>
 
                         {/* Card Action Controls */}
-                        <div className="pt-2 grid grid-cols-2 gap-2">
+                        <div className="pt-2 space-y-2">
                           <button
-                            onClick={() => handleSelectEvent(evt.id)}
-                            className={`flex items-center justify-center gap-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                              isActive
-                                ? "bg-orange-500 text-white shadow-xs"
-                                : "bg-zinc-100 hover:bg-zinc-200 text-zinc-800"
-                            }`}
+                            onClick={() => handleOpenEditModal(evt)}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-950 border border-purple-200 text-xs font-bold transition-all cursor-pointer"
                           >
-                            {isActive ? "Active in Demo" : "Activate Context"}
+                            <Edit3 className="w-3.5 h-3.5 text-purple-600" />
+                            <span>Edit Event & Admin Access</span>
                           </button>
 
-                          <button
-                            onClick={() => setInspectEvent(evt)}
-                            className="flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-bold transition-all cursor-pointer"
-                          >
-                            Inspect Details
-                          </button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleSelectEvent(evt.id)}
+                              className={`flex items-center justify-center gap-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                isActive
+                                  ? "bg-orange-500 text-white shadow-xs"
+                                  : "bg-zinc-100 hover:bg-zinc-200 text-zinc-800"
+                              }`}
+                            >
+                              {isActive ? "Active in Demo" : "Activate Context"}
+                            </button>
+
+                            <button
+                              onClick={() => setInspectEvent(evt)}
+                              className="flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-bold transition-all cursor-pointer"
+                            >
+                              Inspect Details
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1002,7 +1494,18 @@ export default function SuperAdminConsole({
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleOpenEditModal(inspectEvent);
+                    setInspectEvent(null);
+                  }}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Edit Event & Admin Access</span>
+                </button>
+
                 <button
                   onClick={() => {
                     handleSelectEvent(inspectEvent.id);
@@ -1014,6 +1517,447 @@ export default function SuperAdminConsole({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EVENT DETAILS & ADMIN ACCESS MODAL */}
+      {editEvent && (
+        <div className="fixed inset-0 bg-zinc-950/80 z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white text-zinc-900 rounded-3xl p-6 md:p-8 max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border-2 border-purple-200 space-y-6 text-left animate-slideUp">
+            {/* Modal Header */}
+            <div className="flex justify-between items-start border-b border-zinc-200 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded uppercase">
+                    {editEvent.code}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded">
+                    ID: {editEvent.id}
+                  </span>
+                </div>
+                <h3 className="font-display font-black text-xl md:text-2xl text-zinc-950">
+                  Edit Event & Admin Access
+                </h3>
+                <p className="text-xs text-zinc-500 font-medium">
+                  Update event specifications and grant or reassign Event Admin login credentials.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setEditEvent(null)}
+                className="p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-full transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-tab selection */}
+            <div className="flex gap-2 border-b border-zinc-200 pb-2">
+              <button
+                type="button"
+                onClick={() => setEditTab("details")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  editTab === "details"
+                    ? "bg-zinc-900 text-white shadow-xs"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-orange-400" />
+                <span>1. Event Master Details</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditTab("credentials")}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  editTab === "credentials"
+                    ? "bg-purple-700 text-white shadow-xs"
+                    : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5 text-purple-300" />
+                <span>2. Event Admin Credentials & Permissions</span>
+              </button>
+            </div>
+
+            {editSuccessMsg && (
+              <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{editSuccessMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="space-y-5 text-xs">
+              {editTab === "details" ? (
+                /* Tab 1: Event Master Details */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Event Name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-semibold outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Event Short Code
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editCode}
+                        onChange={(e) => setEditCode(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-mono font-bold uppercase outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Status
+                      </label>
+                      <select
+                        value={editStatus}
+                        onChange={(e) => setEditStatus(e.target.value as EventStatus)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-bold outline-none cursor-pointer"
+                      >
+                        <option value="Live">Live (Active Now)</option>
+                        <option value="Scheduled">Scheduled (Upcoming)</option>
+                        <option value="Completed">Completed (Historical)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Festival Category
+                      </label>
+                      <select
+                        value={editCategory}
+                        onChange={(e) => setEditCategory(e.target.value as any)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-bold outline-none cursor-pointer"
+                      >
+                        <option value="Cultural & Food">Cultural & Food</option>
+                        <option value="Music Festival">Music Festival</option>
+                        <option value="Street Market">Street Market</option>
+                        <option value="Exhibition">Exhibition</option>
+                        <option value="Sports & Fair">Sports & Fair</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Venue Location
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-medium outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={editStartDate}
+                        onChange={(e) => setEditStartDate(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-zinc-900 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={editEndDate}
+                        onChange={(e) => setEditEndDate(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-zinc-900 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Expected Attendees
+                      </label>
+                      <input
+                        type="number"
+                        min="100"
+                        required
+                        value={editAttendees}
+                        onChange={(e) => setEditAttendees(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                        Swish Handel Merchant Number
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editSwishId}
+                        onChange={(e) => setEditSwishId(e.target.value)}
+                        className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-mono outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                      Event Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl p-3 text-xs text-zinc-900 outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-zinc-700 block font-mono uppercase text-[11px]">
+                      Custom Map Image URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://..."
+                      value={editMapImageUrl}
+                      onChange={(e) => setEditMapImageUrl(e.target.value)}
+                      className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono outline-none"
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* Tab 2: Event Admin Credentials & Permissions */
+                <div className="space-y-5">
+                  <div className="bg-purple-50/70 border-2 border-purple-200 rounded-2xl p-4 md:p-5 space-y-4">
+                    <div className="flex justify-between items-center border-b border-purple-200 pb-2">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="w-4 h-4 text-purple-700" />
+                        <h4 className="font-bold text-purple-950 font-mono uppercase text-xs">
+                          Event Admin Authentication Credentials
+                        </h4>
+                      </div>
+                      <span className="text-[10px] bg-purple-200 text-purple-900 font-mono font-bold px-2 py-0.5 rounded-full">
+                        Sign In Portal: /admin
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-purple-900/80 leading-relaxed">
+                      Give or update this Event Admin's login credentials. When the organizer goes to the Event Admin portal (<strong className="text-purple-950">/admin</strong>), they log in using this Work Email (Login ID) and Password.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="font-bold text-purple-950 block font-mono uppercase text-[11px]">
+                          Event Admin Contact Name
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={editAdminName}
+                          onChange={(e) => setEditAdminName(e.target.value)}
+                          placeholder="e.g. Sandy (Creative Events Nordic)"
+                          className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-semibold outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-bold text-purple-950 block font-mono uppercase text-[11px]">
+                          Admin Login ID (Work Email) *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={editAdminEmail}
+                          onChange={(e) => setEditAdminEmail(e.target.value)}
+                          placeholder="sandy@creativeventsnordic.com"
+                          className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl px-3 py-2.5 text-xs text-zinc-900 font-semibold outline-none"
+                        />
+                      </div>
+
+                      <div className="space-y-1 md:col-span-2">
+                        <div className="flex justify-between items-center">
+                          <label className="font-bold text-purple-950 block font-mono uppercase text-[11px]">
+                            Login Password / Access PIN *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setEditAdminPassword(generateNewPassword())}
+                            className="text-[10px] text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                          >
+                            Generate Strong Password
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showPasswordMap["edit_current"] ? "text" : "password"}
+                            required
+                            value={editAdminPassword}
+                            onChange={(e) => setEditAdminPassword(e.target.value)}
+                            className="w-full bg-white border border-purple-200 focus:border-purple-600 rounded-xl pl-3 pr-10 py-2.5 text-xs text-zinc-900 font-mono font-bold outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswordMap(prev => ({ ...prev, edit_current: !prev.edit_current }))}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 hover:text-purple-700 cursor-pointer"
+                          >
+                            {showPasswordMap["edit_current"] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Permissions delegation */}
+                    <div className="pt-3 border-t border-purple-200 space-y-2">
+                      <span className="text-[11px] font-bold text-purple-950 block font-mono uppercase">
+                        Delegated Privileges for this Event Admin
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-purple-950">
+                        <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-purple-200/80 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editPermDetails}
+                            onChange={(e) => setEditPermDetails(e.target.checked)}
+                            className="rounded text-purple-600 accent-purple-600"
+                          />
+                          <div>
+                            <div className="font-bold text-zinc-900">Allow Edit Event Details</div>
+                            <div className="text-[10px] text-zinc-500">Can change dates, location, attendee capacity & description</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-purple-200/80 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editPermVendors}
+                            onChange={(e) => setEditPermVendors(e.target.checked)}
+                            className="rounded text-purple-600 accent-purple-600"
+                          />
+                          <div>
+                            <div className="font-bold text-zinc-900">Allow Vendor Management</div>
+                            <div className="text-[10px] text-zinc-500">Can onboard, approve, and suspend food stalls</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-purple-200/80 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editPermMap}
+                            onChange={(e) => setEditPermMap(e.target.checked)}
+                            className="rounded text-purple-600 accent-purple-600"
+                          />
+                          <div>
+                            <div className="font-bold text-zinc-900">Allow Venue Map & QR</div>
+                            <div className="text-[10px] text-zinc-500">Can update festival map and generate table QR codes</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-purple-200/80 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editPermFinancials}
+                            onChange={(e) => setEditPermFinancials(e.target.checked)}
+                            className="rounded text-purple-600 accent-purple-600"
+                          />
+                          <div>
+                            <div className="font-bold text-zinc-900">Allow Financial Audits</div>
+                            <div className="text-[10px] text-zinc-500">Can audit live GMV sales and Swish split revenue</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ready-to-Send Handover Card */}
+                  <div className="bg-zinc-900 text-white rounded-2xl p-4 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase">
+                        Admin Login Handover Preview
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyCredentials({
+                          ...editEvent,
+                          name: editName,
+                          code: editCode,
+                          location: editLocation,
+                          startDate: editStartDate,
+                          endDate: editEndDate,
+                          organizerEmail: editAdminEmail,
+                          adminName: editAdminName,
+                          adminPassword: editAdminPassword
+                        })}
+                        className="text-[10px] text-orange-400 hover:text-orange-300 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        {copiedId === editEvent.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedId === editEvent.id ? "Copied!" : "Copy Handover Text"}</span>
+                      </button>
+                    </div>
+
+                    <div className="font-mono text-[11px] text-zinc-300 space-y-1 bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                      <div>Portal: <strong className="text-white">{window.location.origin}/admin</strong></div>
+                      <div>Login ID: <strong className="text-orange-400">{editAdminEmail || editEvent.organizerEmail}</strong></div>
+                      <div>Password: <strong className="text-white">{editAdminPassword || "admin123"}</strong></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Form Actions */}
+              <div className="pt-3 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleCopyCredentials({
+                    ...editEvent,
+                    name: editName,
+                    code: editCode,
+                    location: editLocation,
+                    startDate: editStartDate,
+                    endDate: editEndDate,
+                    organizerEmail: editAdminEmail,
+                    adminName: editAdminName,
+                    adminPassword: editAdminPassword
+                  })}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                  <span>{copiedId === editEvent.id ? "Credentials Copied!" : "Copy Invitation Note"}</span>
+                </button>
+
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setEditEvent(null)}
+                    className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-display font-black transition-all shadow-md shadow-orange-500/20 cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save & Deploy Changes</span>
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

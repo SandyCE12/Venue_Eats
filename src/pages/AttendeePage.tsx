@@ -1275,10 +1275,17 @@ export const AttendeePage: React.FC = () => {
         vendorSwishNumber={activeVendor?.swishNumber || "123 918 27 36"}
         customerName={customerName}
         onCustomerNameChange={setCustomerName}
-        onPaymentSuccess={async (custName, vendorName, total, method) => {
-          await confirmSwishPayment(custName, activeVendor, total, getCartItemsList(), method);
+        onPaymentSuccess={async (custName, vendorPaid, platformPaid, method) => {
+          const finalTotal = getCartTotal() || (Number(vendorPaid || 0) + Number(platformPaid || 0));
+          const targetVendor = activeVendor || vendors[0];
+          await confirmSwishPayment(
+            custName || customerName || "Guest", 
+            targetVendor, 
+            finalTotal, 
+            getCartItemsList(), 
+            method || "Swish"
+          );
           setCartEntries([]);
-          setShowSwishFlow(false);
           setActiveTab("orders");
           setOrdersSubTab("live");
         }}

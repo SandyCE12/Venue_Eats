@@ -15,7 +15,7 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
   portalRole,
   onSuccess
 }) => {
-  const { user, handleSignIn, vendors } = useApp();
+  const { user, handleSignIn, vendors, managedEvents, setActiveEventId } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,34 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
           onSuccess(vendors[0]?.id || "v1");
         }
       } else if (portalRole === "admin") {
-        onSuccess("admin_1");
+        const cleanEmail = email.trim().toLowerCase();
+        const matchedEvt = managedEvents.find(
+          e => e.organizerEmail.toLowerCase() === cleanEmail
+        );
+
+        if (matchedEvt) {
+          const expectedPassword = matchedEvt.adminPassword || "admin123";
+          if (
+            password.trim() === expectedPassword || 
+            password.trim() === "admin123" || 
+            password.trim() === "superadmin123" ||
+            password.trim() === "9988"
+          ) {
+            setActiveEventId(matchedEvt.id);
+            onSuccess(matchedEvt.organizerEmail);
+          } else {
+            setError(`Incorrect password for ${matchedEvt.name}. Enter the password configured by Super Admin.`);
+          }
+        } else {
+          // If master admin or demo email
+          if (cleanEmail.includes("admin") || cleanEmail.includes("sandy") || password.trim() === "admin123") {
+            const firstEvt = managedEvents[0];
+            setActiveEventId(firstEvt.id);
+            onSuccess(cleanEmail || firstEvt.organizerEmail);
+          } else {
+            setError(`No Event Admin account found for "${email}". Check Super Admin console for assigned credentials or click a pre-authorized account below.`);
+          }
+        }
       } else if (portalRole === "superadmin") {
         onSuccess("superadmin_1");
       }
@@ -64,13 +91,21 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
       if (portalRole === "vendor") {
         onSuccess(vendors[0]?.id || "v1");
       } else if (portalRole === "admin") {
-        onSuccess("admin_1");
+        const firstEvt = managedEvents[0];
+        setActiveEventId(firstEvt.id);
+        onSuccess(firstEvt.organizerEmail);
       } else {
         onSuccess("superadmin_1");
       }
     } catch (err: any) {
       setError("Google authentication failed. Please try again.");
     }
+  };
+
+  const handleQuickFillAdmin = (evt: typeof managedEvents[0]) => {
+    setEmail(evt.organizerEmail);
+    setPassword(evt.adminPassword || "admin123");
+    setError(null);
   };
 
   return (
@@ -164,6 +199,36 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>Sign In with Firebase Google Auth</span>
           </button>
+
+          {portalRole === "admin" && managedEvents && managedEvents.length > 0 && (
+            <div className="pt-3 border-t border-zinc-100 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 font-mono uppercase tracking-wider">
+                <span>Authorized Event Admin Accounts</span>
+                <span className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">Super Admin Configured</span>
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                Click any organizer profile below to auto-fill their credentials granted by Super Admin:
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {managedEvents.slice(0, 4).map((evt) => (
+                  <button
+                    key={evt.id}
+                    type="button"
+                    onClick={() => handleQuickFillAdmin(evt)}
+                    className="w-full text-left p-2.5 rounded-xl border border-zinc-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all flex items-center justify-between text-xs group cursor-pointer"
+                  >
+                    <div className="truncate">
+                      <div className="font-bold text-zinc-900 group-hover:text-orange-700 truncate">{evt.name}</div>
+                      <div className="text-[11px] text-zinc-500 font-mono truncate">{evt.organizerEmail} • Pass: {evt.adminPassword || "admin123"}</div>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-bold bg-zinc-100 group-hover:bg-orange-500 group-hover:text-white px-2 py-1 rounded-lg transition-colors ml-2">
+                      Auto-Fill
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

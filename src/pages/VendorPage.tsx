@@ -7,12 +7,19 @@ import {
   Settings, 
   MessageSquare, 
   LogOut, 
-  Bell
+  Bell,
+  FileText,
+  Eye,
+  CheckCircle2,
+  Calendar,
+  Landmark
 } from "lucide-react";
 import VendorAnalytics from "../components/VendorAnalytics";
 import VendorSettings from "../components/VendorSettings";
 import SupportChat from "../components/SupportChat";
 import { VendorMenuManager } from "../components/VendorMenuManager";
+import { VendorInvoiceModal } from "../components/VendorInvoiceModal";
+import { VendorInvoice } from "../types";
 
 export const VendorPage: React.FC = () => {
   const {
@@ -24,7 +31,8 @@ export const VendorPage: React.FC = () => {
     handleUpdateVendorProfile
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<"orders" | "menu" | "analytics" | "settings" | "support">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "menu" | "analytics" | "invoices" | "settings" | "support">("orders");
+  const [selectedInvoiceForVendor, setSelectedInvoiceForVendor] = useState<VendorInvoice | null>(null);
 
   if (!loggedInVendorId) {
     return (
@@ -104,6 +112,16 @@ export const VendorPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab("invoices")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display font-black text-xs transition-all cursor-pointer ${
+            activeTab === "invoices" ? "bg-zinc-900 text-white shadow-md" : "bg-white text-zinc-600 border border-zinc-200"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>Invoices &amp; Receipts ({selectedVendor.invoices?.length || 0})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("settings")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display font-black text-xs transition-all cursor-pointer ${
             activeTab === "settings" ? "bg-zinc-900 text-white shadow-md" : "bg-white text-zinc-600 border border-zinc-200"
@@ -127,6 +145,91 @@ export const VendorPage: React.FC = () => {
       {/* RENDER TAB CONTENT */}
       {activeTab === "analytics" ? (
         <VendorAnalytics vendor={selectedVendor} orders={vendorOrders} />
+      ) : activeTab === "invoices" ? (
+        <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-6 shadow-xs animate-fadeIn">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-100 pb-4">
+            <div>
+              <h3 className="font-display font-black text-xl text-zinc-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-orange-500" />
+                <span>Settlement Receipts &amp; Invoices</span>
+              </h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Official revenue settlements, payout specifications, and event invoices issued by the festival organizer.
+              </p>
+            </div>
+          </div>
+
+          {(!selectedVendor.invoices || selectedVendor.invoices.length === 0) ? (
+            <div className="bg-zinc-50 border border-dashed border-zinc-200 rounded-3xl p-10 text-center space-y-2">
+              <FileText className="w-8 h-8 text-zinc-400 mx-auto" />
+              <h4 className="font-bold text-sm text-zinc-800">No invoices or receipts yet</h4>
+              <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                Once the festival organizer runs daily settlement or issues booth invoices, your official documents will be available here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {selectedVendor.invoices.map((inv) => (
+                <div
+                  key={inv.id}
+                  className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2.5 rounded-xl border shrink-0 ${
+                      inv.type === "receipt"
+                        ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                        : "bg-sky-500/10 text-sky-600 border-sky-500/20"
+                    }`}>
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-display font-black text-sm text-zinc-900">
+                          {inv.title}
+                        </span>
+                        <span className="font-mono text-[10px] text-zinc-400">
+                          #{inv.invoiceNumber}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                        Issued: {inv.issueDate} • Event: {inv.eventName}
+                      </p>
+                      {inv.notes && (
+                        <p className="text-[10px] text-zinc-500 italic mt-0.5 line-clamp-1">
+                          "{inv.notes}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <div className="text-right font-mono">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block ${
+                        inv.status === "Settled"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-sky-100 text-sky-800"
+                      }`}>
+                        {inv.status}
+                      </span>
+                      <span className="block font-black text-sm text-zinc-900 mt-0.5">
+                        {inv.netPayoutAmount.toLocaleString()} SEK
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedInvoiceForVendor(inv)}
+                      className="bg-zinc-900 hover:bg-zinc-800 text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View &amp; Print</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       ) : activeTab === "settings" ? (
         <VendorSettings vendor={selectedVendor} onUpdateVendorProfile={handleUpdateVendorProfile} />
       ) : activeTab === "support" ? (
@@ -207,6 +310,14 @@ export const VendorPage: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* VENDOR INVOICE & RECEIPT MODAL */}
+      {selectedInvoiceForVendor && (
+        <VendorInvoiceModal
+          invoice={selectedInvoiceForVendor}
+          onClose={() => setSelectedInvoiceForVendor(null)}
+        />
       )}
     </div>
   );

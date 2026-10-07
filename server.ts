@@ -2,6 +2,9 @@ import express from "express";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import swishInitiateHandler from "./api/swish-initiate";
+import swishStatusHandler from "./api/swish-status";
+import swishCallbackHandler from "./api/swish-callback";
 
 dotenv.config();
 
@@ -35,11 +38,8 @@ app.post("/api/generate-proposal", async (req, res) => {
   const resolvedLanguage = focusLanguage || "English";
   const resolvedCurrency = currency || "SEK";
 
-  const ai = getAiClient();
-
-  if (!ai) {
-    // Elegant fallback proposal when API key is not yet set
-    const fallbackText = resolvedLanguage === "Swedish" ? 
+  // Elegant fallback proposal when API key is not yet set or on error
+  const fallbackText = resolvedLanguage === "Swedish" ? 
 `# Projektförslag: VenueEat för ${resolvedEventName}
 
 ## 1. Sammanfattning
@@ -63,7 +63,7 @@ Enligt svensk lagstiftning måste alla matförsäljare använda ett godkänt kas
 * **Vecka 3-4:** Bygg deltagarapp (beställning) och säljarkonsol (beställningshantering).
 * **Vecka 5:** Fälttester på plats med 5G-routers och kvittoskrivare.
 * **Vecka 6:** Live-lansering under ${resolvedEventName}!`
-    :
+  :
 `# Project Proposal: QueueFree for ${resolvedEventName}
 
 ## 1. Executive Summary
@@ -88,6 +88,9 @@ In Sweden, all retail and food sales must comply with the Cash Register Act (Kas
 * **Week 5:** Load testing with high concurrency simulations.
 * **Week 6:** On-site deployment and vendor staff training.`;
 
+  const ai = getAiClient();
+
+  if (!ai) {
     return res.json({ proposal: fallbackText, isFallback: true });
   }
 
@@ -138,39 +141,39 @@ app.post("/api/support-chat", async (req, res) => {
   const lastUserMessageObj = messages[messages.length - 1];
   const lastUserMessage = lastUserMessageObj?.text || lastUserMessageObj?.content || "";
 
+  // Dynamic mock response fallback when GEMINI_API_KEY is not defined or on error
+  const lowerMsg = lastUserMessage.toLowerCase();
+  let fallbackReply = "";
+
+  if (chatType === "vendor") {
+    if (lowerMsg.includes("skatteverket") || lowerMsg.includes("tax") || lowerMsg.includes("kassa") || lowerMsg.includes("law")) {
+      fallbackReply = "Hej! The VenueEat platform keeps your business 100% compliant with Swedish Skatteverket (Kassaregisterlagen). Every purchase made via Swish/Card automatically connects to our cloud-certified fiscal box (clean box) and instantly shoots an authorized digital receipt to the customer's phone history. You don't need any bulky extra on-site hardware!";
+    } else if (lowerMsg.includes("payout") || lowerMsg.includes("swish") || lowerMsg.includes("money") || lowerMsg.includes("get paid")) {
+      fallbackReply = "Your customer payouts from Swish Handel go directly into your connected restaurant bank account in real-time! The platform's standard 3.0% commission fee is computed automatically and is fully transparent in your 'Analytics' dashboard. No manual reconciliation required.";
+    } else if (lowerMsg.includes("queue") || lowerMsg.includes("congestion") || lowerMsg.includes("rush")) {
+      fallbackReply = "During peak hours, your kitchen congestion state will display as 'Busy'. To manage high volume, you can pause background traffic using the 'Pause Traffic' switch on the console. Also, ensure you click 'Accept & Cook' as soon as order tickets arrive so customers know you're on it!";
+    } else if (lowerMsg.includes("ready") || lowerMsg.includes("serve") || lowerMsg.includes("prepare")) {
+      fallbackReply = "As soon as you finish preparing a dish, click the blue 'Notify Ready' button. This triggers a real-time sound and status update on the customer's phone tracker telling them to come to the counter for pickup!";
+    } else {
+      fallbackReply = `Hej Chef! I am your VenueEat Vendor Operations Assistant. I can help you with menu item customization, live analytics, Stockholm festival logistics, or complying with Skatteverket's Cash Register Act. Ask me any question about your kitchen operations!`;
+    }
+  } else {
+    // Customer
+    if (lowerMsg.includes("swish") || lowerMsg.includes("pay") || lowerMsg.includes("betala") || lowerMsg.includes("money")) {
+      fallbackReply = "Ordering and paying with Swish is fully automated! Just pick your favorite meals from any vendor menu, tap the 'Pay with Swish' button, fill in your billing details, and verify in your Swish app on your real phone. Once completed, your ticket is fired instantly to the chef's dashboard!";
+    } else if (lowerMsg.includes("tracker") || lowerMsg.includes("ready") || lowerMsg.includes("status") || lowerMsg.includes("delay")) {
+      fallbackReply = "You can view your order progress live by tapping the 'Tracker' tab (indicated by the orange beacon icon) at the bottom of your phone screen. You will see stages: 'Processing' (waiting for vendor), 'Preparing' (chef is cooking), and 'Ready for Pickup' (come get it!).";
+    } else if (lowerMsg.includes("menu") || lowerMsg.includes("price") || lowerMsg.includes("food") || lowerMsg.includes("recommend")) {
+      fallbackReply = "We have 4 premium pre-approved street food partners! Delhi Street Sensation (Chaat & Rolls), Bombay Cutting & Grill (Street Eats), Kerala Coastal Spice (South Indian Delights), and Jaipur Palace Sweets (Traditional Sweets & Drinks). Tap any of their cards to view and customize delicious, authentic dishes!";
+    } else {
+      fallbackReply = `Hej! I am your VenueEat Guest Support Concierge. Ask me anything about exploring menus, customizing toppings, paying with Swish, or tracking your order live. I'm here to help you skip the queue!`;
+    }
+  }
+
   const ai = getAiClient();
 
   if (!ai) {
-    // Dynamic mock response fallback when GEMINI_API_KEY is not defined
-    const lowerMsg = lastUserMessage.toLowerCase();
-    let text = "";
-
-    if (chatType === "vendor") {
-      if (lowerMsg.includes("skatteverket") || lowerMsg.includes("tax") || lowerMsg.includes("kassa") || lowerMsg.includes("law")) {
-        text = "Hej! The VenueEat platform keeps your business 100% compliant with Swedish Skatteverket (Kassaregisterlagen). Every purchase made via Swish/Card automatically connects to our cloud-certified fiscal box (clean box) and instantly shoots an authorized digital receipt to the customer's phone history. You don't need any bulky extra on-site hardware!";
-      } else if (lowerMsg.includes("payout") || lowerMsg.includes("swish") || lowerMsg.includes("money") || lowerMsg.includes("get paid")) {
-        text = "Your customer payouts from Swish Handel go directly into your connected restaurant bank account in real-time! The platform's standard 3.0% commission fee is computed automatically and is fully transparent in your 'Analytics' dashboard. No manual reconciliation required.";
-      } else if (lowerMsg.includes("queue") || lowerMsg.includes("congestion") || lowerMsg.includes("rush")) {
-        text = "During peak hours, your kitchen congestion state will display as 'Busy'. To manage high volume, you can pause background traffic using the 'Pause Traffic' switch on the console. Also, ensure you click 'Accept & Cook' as soon as order tickets arrive so customers know you're on it!";
-      } else if (lowerMsg.includes("ready") || lowerMsg.includes("serve") || lowerMsg.includes("prepare")) {
-        text = "As soon as you finish preparing a dish, click the blue 'Notify Ready' button. This triggers a real-time sound and status update on the customer's phone tracker telling them to come to the counter for pickup!";
-      } else {
-        text = `Hej Chef! I am your VenueEat Vendor Operations Assistant. I can help you with menu item customization, live analytics, Stockholm festival logistics, or complying with Skatteverket's Cash Register Act. Ask me any question about your kitchen operations!`;
-      }
-    } else {
-      // Customer
-      if (lowerMsg.includes("swish") || lowerMsg.includes("pay") || lowerMsg.includes("betala") || lowerMsg.includes("money")) {
-        text = "Ordering and paying with Swish is fully automated! Just pick your favorite meals from any vendor menu, tap the 'Pay with Swish' button, fill in your billing details, and verify in your Swish app on your real phone. Once completed, your ticket is fired instantly to the chef's dashboard!";
-      } else if (lowerMsg.includes("tracker") || lowerMsg.includes("ready") || lowerMsg.includes("status") || lowerMsg.includes("delay")) {
-        text = "You can view your order progress live by tapping the 'Tracker' tab (indicated by the orange beacon icon) at the bottom of your phone screen. You will see stages: 'Processing' (waiting for vendor), 'Preparing' (chef is cooking), and 'Ready for Pickup' (come get it!).";
-      } else if (lowerMsg.includes("menu") || lowerMsg.includes("price") || lowerMsg.includes("food") || lowerMsg.includes("recommend")) {
-        text = "We have 4 premium pre-approved street food partners! Delhi Street Sensation (Chaat & Rolls), Bombay Cutting & Grill (Street Eats), Kerala Coastal Spice (South Indian Delights), and Jaipur Palace Sweets (Traditional Sweets & Drinks). Tap any of their cards to view and customize delicious, authentic dishes!";
-      } else {
-        text = `Hej! I am your VenueEat Guest Support Concierge. Ask me anything about exploring menus, customizing toppings, paying with Swish, or tracking your order live. I'm here to help you skip the queue!`;
-      }
-    }
-
-    return res.json({ text, isFallback: true });
+    return res.json({ text: fallbackReply, isFallback: true });
   }
 
   try {
@@ -207,10 +210,10 @@ Keep responses snappy, helpful, delightful, and speak in the language (Swedish o
       }
     });
 
-    res.json({ text: response.text || text, isFallback: false });
+    res.json({ text: response.text || fallbackReply, isFallback: false });
   } catch (error: any) {
     console.error("Gemini Support Chat Error:", error);
-    res.json({ text, isFallback: true });
+    res.json({ text: fallbackReply, isFallback: true });
   }
 });
 
@@ -295,6 +298,21 @@ Rules:
     console.error("PDF menu parse error:", error);
     res.status(200).json({ error: error.message || "Failed to parse menu PDF with Gemini.", items: [], isFallback: true });
   }
+});
+
+// API: Swish Payment Initiation
+app.post("/api/swish-initiate", (req, res) => {
+  swishInitiateHandler(req as any, res as any);
+});
+
+// API: Swish Payment Status Polling
+app.get("/api/swish-status", (req, res) => {
+  swishStatusHandler(req as any, res as any);
+});
+
+// API: Swish Server Callback
+app.post("/api/swish-callback", (req, res) => {
+  swishCallbackHandler(req as any, res as any);
 });
 
 // Mount Vite middleware for development or serve build folder in production
