@@ -29,6 +29,57 @@ export interface Vendor {
   phone?: string;
   isApproved?: boolean | "rejected" | string;
   swishNumber?: string;
+  // Bank settlement & payout details
+  bankName?: string;
+  bankClearingNumber?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  bankIban?: string;
+  bankBicSwift?: string;
+  bankGiro?: string;
+  plusGiro?: string;
+  invoices?: VendorInvoice[];
+}
+
+export interface VendorInvoice {
+  id: string;
+  type: "receipt" | "invoice";
+  title: string;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate?: string;
+  vendorId: string;
+  vendorName: string;
+  vendorEmail: string;
+  eventName: string;
+  grossAmount: number;
+  commissionAmount: number;
+  netPayoutAmount: number;
+  vatAmount?: number;
+  ordersCount?: number;
+  status: "Sent" | "Paid" | "Settled";
+  bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    clearingNumber?: string;
+    swishNumber?: string;
+    bankGiro?: string;
+    accountHolder?: string;
+  };
+  issuerBankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    clearingNumber?: string;
+    swishNumber?: string;
+    bankGiro?: string;
+    plusGiro?: string;
+    accountHolder?: string;
+    orgNumber?: string;
+    iban?: string;
+    bicSwift?: string;
+  };
+  notes?: string;
+  sentAt: number;
 }
 
 export interface OrderItem {
@@ -68,6 +119,13 @@ export interface Order {
 
 export type EventStatus = "Live" | "Scheduled" | "Completed";
 
+export interface EventAdminPermissions {
+  canEditDetails: boolean;
+  canManageVendors: boolean;
+  canManageMap: boolean;
+  canViewFinancials: boolean;
+}
+
 export interface ManagedEvent {
   id: string;
   name: string;
@@ -83,6 +141,9 @@ export interface ManagedEvent {
   totalOrdersCount: number;
   platformFeeRevenueSEK: number;
   organizerEmail: string;
+  adminName?: string;
+  adminPassword?: string;
+  adminPermissions?: EventAdminPermissions;
   category: "Cultural & Food" | "Music Festival" | "Street Market" | "Exhibition" | "Sports & Fair";
   description: string;
   swishMerchantId: string;
@@ -93,6 +154,18 @@ export interface ManagedEvent {
   peakHour?: string;
   historyNotes?: string;
   year?: number;
+  // Event Organizer Banking & Swish Details
+  bankName?: string;
+  bankClearingNumber?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
+  bankGiro?: string;
+  plusGiro?: string;
+  bankIban?: string;
+  bankBicSwift?: string;
+  swishNumber?: string;
+  orgNumber?: string;
+  vatNumber?: string;
 }
 
 export interface BusinessMetrics {

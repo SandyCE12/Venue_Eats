@@ -89,6 +89,7 @@ interface AppContextType {
   handleAddNewVendor: (newVendor: Vendor) => Promise<void>;
   handleUpdateEventStatus: (eventId: string, newStatus: EventStatus) => void;
   handleAddNewEvent: (newEvent: ManagedEvent) => void;
+  handleUpdateEvent: (updatedEvent: ManagedEvent) => void;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
   /** The event the attendee has chosen from the selector screen (localStorage-backed). null = show selector. */
   selectedUserEventId: string | null;
@@ -127,7 +128,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [customerName, setCustomerName] = useState("Lars");
   const [activeTable, setActiveTable] = useState<string | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
-  const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>(MANAGED_EVENTS);
+  const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem("venueeat_managed_events_v2");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge any newly introduced demo properties from MANAGED_EVENTS into saved
+          return parsed.map((item: ManagedEvent) => {
+            const defaultMatch = MANAGED_EVENTS.find(d => d.id === item.id);
+            return {
+              ...defaultMatch,
+              ...item,
+              adminPassword: item.adminPassword || defaultMatch?.adminPassword || "admin123",
+              adminName: item.adminName || defaultMatch?.adminName || "Event Organizer",
+              adminPermissions: item.adminPermissions || defaultMatch?.adminPermissions || {
+                canEditDetails: true,
+                canManageVendors: true,
+                canManageMap: true,
+                canViewFinancials: true
+              }
+            };
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Could not parse saved events", e);
+    }
+    return MANAGED_EVENTS;
+  });
   const [selectedUserEventId, _setSelectedUserEventId] = useState<string | null>(() => {
     return localStorage.getItem("venueeat_selected_event_id") || null;
   });
@@ -487,13 +516,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const handleUpdateEventStatus = (eventId: string, newStatus: EventStatus) => {
-    setManagedEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: newStatus } : e));
+    setManagedEvents(prev => {
+      const next = prev.map(e => e.id === eventId ? { ...e, status: newStatus } : e);
+      try {
+        localStorage.setItem("venueeat_managed_events_v2", JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
     setNotification(`Updated event status to "${newStatus}"!`);
   };
 
   const handleAddNewEvent = (newEvent: ManagedEvent) => {
-    setManagedEvents(prev => [newEvent, ...prev]);
-    setNotification(`Created new event "${newEvent.name}"!`);
+    setManagedEvents(prev => {
+      const next = [newEvent, ...prev];
+      try {
+        localStorage.setItem("venueeat_managed_events_v2", JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
+    setNotification(`Created new event "${newEvent.name}" and provisioned Event Admin account!`);
+    logActivity(`Event "${newEvent.name}" registered with admin login ${newEvent.organizerEmail}`, "admin", "success");
+  };
+
+  const handleUpdateEvent = (updatedEvent: ManagedEvent) => {
+    setManagedEvents(prev => {
+      const next = prev.map(e => e.id === updatedEvent.id ? updatedEvent : e);
+      try {
+        localStorage.setItem("venueeat_managed_events_v2", JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
+    setNotification(`Updated "${updatedEvent.name}" details and admin access credentials.`);
+    logActivity(`Super Admin updated event settings & login credentials for "${updatedEvent.name}".`, "admin", "success");
   };
 
   const estimateVendorWaitTime = (vendorId: string) => {
@@ -577,6 +631,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleAddNewVendor,
         handleUpdateEventStatus,
         handleAddNewEvent,
+        handleUpdateEvent,
         estimateVendorWaitTime,
         selectedUserEventId,
         setSelectedUserEventId

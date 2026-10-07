@@ -1,11 +1,19 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+interface ApiRequest {
+  method?: string;
+  body?: any;
+}
+
+interface ApiResponse {
+  status: (statusCode: number) => ApiResponse;
+  end: () => void;
+}
 
 /**
  * Swish Handel server-to-server callback.
  * Swish calls this URL after a payment is PAID, DECLINED, or CANCELLED.
  * We log the event — the frontend detects the result by polling /api/swish-status.
  */
-export default function handler(req: VercelRequest, res: VercelResponse) {
+export default function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).end();
   }
