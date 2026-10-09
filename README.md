@@ -18,3 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/e1522b9f-eb56-4805-ad8d-977f2
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## License
+
+This project is licensed under the terms of the GNU General Public License version 2 (GPLv2). See [LICENSE](LICENSE) or [COPYING](COPYING) for the full license text.

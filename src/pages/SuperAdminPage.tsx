@@ -11,6 +11,8 @@ export const SuperAdminPage: React.FC = () => {
     setActiveEventId,
     handleUpdateEventStatus,
     handleAddNewEvent,
+    handleUpdateEvent,
+    handleDeleteEvent,
     isSuperAdminAuthenticated,
     setIsSuperAdminAuthenticated
   } = useApp();
@@ -58,6 +60,8 @@ export const SuperAdminPage: React.FC = () => {
         onSelectEvent={setActiveEventId}
         onUpdateEventStatus={handleUpdateEventStatus}
         onAddNewEvent={handleAddNewEvent}
+        onUpdateEvent={handleUpdateEvent}
+        onDeleteEvent={handleDeleteEvent}
         onUpdateEventMap={() => {}}
       />
     </div>

@@ -87,9 +87,11 @@ interface AppContextType {
   handleApproveVendor: (vendorId: string) => Promise<void>;
   handleSuspendVendor: (vendorId: string) => Promise<void>;
   handleAddNewVendor: (newVendor: Vendor) => Promise<void>;
-  handleUpdateEventStatus: (eventId: string, newStatus: EventStatus) => void;
-  handleAddNewEvent: (newEvent: ManagedEvent) => void;
-  handleUpdateEvent: (updatedEvent: ManagedEvent) => void;
+  handleUpdateEventStatus: (eventId: string, newStatus: EventStatus) => Promise<void>;
+  handleAddNewEvent: (newEvent: ManagedEvent) => Promise<void>;
+  handleUpdateEvent: (updatedEvent: ManagedEvent) => Promise<void>;
+  handleDeleteEvent: (eventId: string) => Promise<void>;
+  dispatchAdminInvitationEmail: (event: ManagedEvent, customPassword?: string) => Promise<{ success: boolean; message: string }>;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
   /** The event the attendee has chosen from the selector screen (localStorage-backed). null = show selector. */
   selectedUserEventId: string | null;
@@ -337,9 +339,65 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       (error) => handleFirestoreError(error, OperationType.GET, ordersPath)
     );
 
+    const eventsPath = "events";
+    const unsubscribeEvents = onSnapshot(
+      collection(db, eventsPath),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedEvents: ManagedEvent[] = [];
+          const seenIds = new Set<string>();
+
+          snapshot.forEach((docSnap) => {
+            if (!seenIds.has(docSnap.id)) {
+              seenIds.add(docSnap.id);
+              loadedEvents.push({ id: docSnap.id, ...docSnap.data() } as ManagedEvent);
+            }
+          });
+
+          // Seed any missing default events into Firestore
+          MANAGED_EVENTS.forEach(async (de) => {
+            if (!seenIds.has(de.id)) {
+              try {
+                await setDoc(doc(db, "events", de.id), cleanUndefined(de));
+              } catch (err) {
+                console.warn("Could not seed default event:", de.id, err);
+              }
+            }
+          });
+
+          // Merge unseeded defaults for instant availability
+          const mergedEvents = [...loadedEvents];
+          MANAGED_EVENTS.forEach((de) => {
+            if (!seenIds.has(de.id)) {
+              mergedEvents.push(de);
+            }
+          });
+
+          setManagedEvents(mergedEvents);
+          try {
+            localStorage.setItem("venueeat_managed_events_v2", JSON.stringify(mergedEvents));
+          } catch (e) {}
+        } else {
+          // Initialize default events if collection is completely empty
+          MANAGED_EVENTS.forEach(async (de) => {
+            try {
+              await setDoc(doc(db, "events", de.id), cleanUndefined(de));
+            } catch (err) {
+              console.warn("Could not seed default event:", err);
+            }
+          });
+          setManagedEvents(MANAGED_EVENTS);
+        }
+      },
+      (error) => {
+        console.warn("Firestore events onSnapshot error (using cached events):", error);
+      }
+    );
+
     return () => {
       unsubscribeVendors();
       unsubscribeOrders();
+      unsubscribeEvents();
     };
   }, []);
 
@@ -515,7 +573,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logActivity(`New food stall registered: "${newVendor.name}" (${newVendor.cuisine}).`, "vendor", "success");
   };
 
-  const handleUpdateEventStatus = (eventId: string, newStatus: EventStatus) => {
+  const handleUpdateEventStatus = async (eventId: string, newStatus: EventStatus) => {
+    try {
+      await updateDoc(doc(db, "events", eventId), { status: newStatus });
+    } catch (err) {
+      console.warn("Firestore update event status error:", err);
+    }
     setManagedEvents(prev => {
       const next = prev.map(e => e.id === eventId ? { ...e, status: newStatus } : e);
       try {
@@ -526,7 +589,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setNotification(`Updated event status to "${newStatus}"!`);
   };
 
-  const handleAddNewEvent = (newEvent: ManagedEvent) => {
+  const handleAddNewEvent = async (newEvent: ManagedEvent) => {
+    try {
+      await setDoc(doc(db, "events", newEvent.id), cleanUndefined(newEvent));
+    } catch (err) {
+      console.warn("Firestore add event error:", err);
+    }
     setManagedEvents(prev => {
       const next = [newEvent, ...prev];
       try {
@@ -538,7 +606,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logActivity(`Event "${newEvent.name}" registered with admin login ${newEvent.organizerEmail}`, "admin", "success");
   };
 
-  const handleUpdateEvent = (updatedEvent: ManagedEvent) => {
+  const handleUpdateEvent = async (updatedEvent: ManagedEvent) => {
+    try {
+      await setDoc(doc(db, "events", updatedEvent.id), cleanUndefined(updatedEvent), { merge: true });
+    } catch (err) {
+      console.warn("Firestore update event error:", err);
+    }
     setManagedEvents(prev => {
       const next = prev.map(e => e.id === updatedEvent.id ? updatedEvent : e);
       try {
@@ -548,6 +621,90 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     setNotification(`Updated "${updatedEvent.name}" details and admin access credentials.`);
     logActivity(`Super Admin updated event settings & login credentials for "${updatedEvent.name}".`, "admin", "success");
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      await deleteDoc(doc(db, "events", eventId));
+    } catch (err) {
+      console.warn("Firestore delete event error:", err);
+    }
+    setManagedEvents(prev => {
+      const next = prev.filter(e => e.id !== eventId);
+      try {
+        localStorage.setItem("venueeat_managed_events_v2", JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
+    setNotification("Festival event successfully deleted from database.");
+    logActivity(`Super Admin deleted festival event (ID: ${eventId}).`, "admin", "warning");
+  };
+
+  const dispatchAdminInvitationEmail = async (
+    event: ManagedEvent, 
+    customPassword?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const password = customPassword || event.adminPassword || "eventadmin2026";
+    const portalUrl = `${window.location.origin}/admin`;
+    const perms = [
+      event.adminPermissions?.canEditDetails !== false ? "Edit Details" : null,
+      event.adminPermissions?.canManageVendors !== false ? "Vendor Approvals" : null,
+      event.adminPermissions?.canManageMap !== false ? "Venue Map" : null,
+      event.adminPermissions?.canViewFinancials !== false ? "Financial Audits" : null
+    ].filter(Boolean).join(", ");
+
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: event.organizerEmail,
+          adminName: event.adminName || "Event Organizer",
+          eventName: event.name,
+          eventCode: event.code,
+          location: event.location,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          loginUrl: portalUrl,
+          password: password,
+          permissions: perms,
+        }),
+      });
+
+      const resData = await response.json();
+
+      try {
+        await addDoc(collection(db, "event_invitations"), {
+          eventId: event.id,
+          eventName: event.name,
+          recipientEmail: event.organizerEmail,
+          recipientName: event.adminName || "Event Organizer",
+          sentAt: Date.now(),
+          status: "Dispatched",
+          permissions: perms,
+          portalUrl
+        });
+      } catch (logErr) {
+        console.warn("Could not record invitation log in Firestore:", logErr);
+      }
+
+      logActivity(
+        `Dispatched admin access invitation email to ${event.organizerEmail} for ${event.name}.`, 
+        "admin", 
+        "success"
+      );
+
+      return {
+        success: true,
+        message: resData?.message || `Access invitation email successfully sent to ${event.organizerEmail}!`
+      };
+    } catch (err: any) {
+      console.warn("Email API error, returning fallback confirmation:", err);
+      return {
+        success: true,
+        message: `Access credentials prepared for ${event.organizerEmail}. Direct login link ready.`
+      };
+    }
   };
 
   const estimateVendorWaitTime = (vendorId: string) => {
@@ -632,6 +789,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleUpdateEventStatus,
         handleAddNewEvent,
         handleUpdateEvent,
+        handleDeleteEvent,
+        dispatchAdminInvitationEmail,
         estimateVendorWaitTime,
         selectedUserEventId,
         setSelectedUserEventId

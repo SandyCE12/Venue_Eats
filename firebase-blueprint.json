@@ -44,6 +44,11 @@
           "description": "Contact email of the vendor, used for secure login",
           "maxLength": 100
         },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number of the vendor",
+          "maxLength": 50
+        },
         "isApproved": {
           "type": "boolean",
           "description": "Approval status of the vendor. Can be true (approved), false (pending), or 'rejected'"

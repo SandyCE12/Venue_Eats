@@ -93,6 +93,17 @@ service cloud.firestore {
       allow delete: if true;
     }
 
+    // Root Events Collection (Festival Events & Admin Access)
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if true;
+    }
+
+    // Root Event Invitations Collection (Audit log of dispatched admin access emails)
+    match /event_invitations/{invitationId} {
+      allow read, write: if true;
+    }
+
     // User Collection Sandbox
     match /users/{userId} {
       function isOwner(userId) {

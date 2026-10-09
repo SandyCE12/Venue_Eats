@@ -37,9 +37,15 @@ import {
   Edit3,
   ExternalLink,
   Save,
-  Sliders
+  Sliders,
+  Mail,
+  Send,
+  Loader2,
+  Trash2
 } from "lucide-react";
 import type { ManagedEvent, EventStatus, EventAdminPermissions } from "../types";
+import { useApp } from "../context/AppContext";
+import { AUTHORIZED_SUPER_ADMINS } from "../data";
 
 interface SuperAdminConsoleProps {
   managedEvents?: ManagedEvent[];
@@ -50,6 +56,7 @@ interface SuperAdminConsoleProps {
   onAddNewEvent: (newEvent: ManagedEvent) => void;
   onUpdateEventStatus: (eventId: string, status: EventStatus) => void;
   onUpdateEvent?: (updatedEvent: ManagedEvent) => void;
+  onDeleteEvent?: (eventId: string) => void;
   onUpdateEventMap?: () => void;
 }
 
@@ -62,13 +69,14 @@ export default function SuperAdminConsole({
   onAddNewEvent,
   onUpdateEventStatus,
   onUpdateEvent,
+  onDeleteEvent,
 }: SuperAdminConsoleProps) {
   const events = managedEvents || passedEvents || [];
   const handleSelectEvent = onSelectEvent || onSelectActiveEvent || (() => {});
   // Super Admin Authentication State (default to true for instant demo access, or false if user clicks Logout)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [loginEmail, setLoginEmail] = useState("superadmin@venueeat.se");
-  const [loginPassword, setLoginPassword] = useState("superadmin123");
+  const [loginEmail, setLoginEmail] = useState("admin@creativeventsnordic.com");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"live" | "credentials" | "history" | "create">("live");
@@ -85,6 +93,43 @@ export default function SuperAdminConsole({
   const [editTab, setEditTab] = useState<"details" | "credentials">("details");
   const [showPasswordMap, setShowPasswordMap] = useState<{ [id: string]: boolean }>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+  const [emailSentMap, setEmailSentMap] = useState<{ [id: string]: boolean }>({});
+
+  const [eventToDelete, setEventToDelete] = useState<ManagedEvent | null>(null);
+  const [invitationModalEvent, setInvitationModalEvent] = useState<{ event: ManagedEvent; password?: string } | null>(null);
+
+  const { dispatchAdminInvitationEmail } = useApp();
+
+  const handleConfirmDelete = () => {
+    if (!eventToDelete) return;
+    if (onDeleteEvent) {
+      onDeleteEvent(eventToDelete.id);
+    }
+    if (inspectEvent && inspectEvent.id === eventToDelete.id) {
+      setInspectEvent(null);
+    }
+    if (editEvent && editEvent.id === eventToDelete.id) {
+      setEditEvent(null);
+    }
+    setEventToDelete(null);
+  };
+
+  const handleSendAdminEmail = async (evt: ManagedEvent) => {
+    // Open on-screen handover / dispatch dialog
+    setInvitationModalEvent({ event: evt, password: evt.adminPassword || "eventadmin2026" });
+    setSendingEmailId(evt.id);
+    try {
+      if (dispatchAdminInvitationEmail) {
+        await dispatchAdminInvitationEmail(evt);
+      }
+      setEmailSentMap(prev => ({ ...prev, [evt.id]: true }));
+    } catch (e) {
+      console.warn("Could not dispatch email:", e);
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
 
   // Edit Event Form state
   const [editName, setEditName] = useState("");
@@ -242,21 +287,23 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
       return;
     }
 
-    if (
-      (loginEmail.toLowerCase() === "superadmin@venueeat.se" || loginEmail.toLowerCase() === "admin@creativeventsnordic.com") &&
-      (loginPassword === "superadmin123" || loginPassword === "admin123" || loginPassword === "9988")
-    ) {
+    const cleanEmail = loginEmail.trim().toLowerCase();
+    const superAdmin = AUTHORIZED_SUPER_ADMINS.find(
+      sa => sa.email.toLowerCase() === cleanEmail
+    );
+
+    if (superAdmin && loginPassword === superAdmin.password) {
       setIsAuthenticated(true);
       setLoginError(null);
     } else {
-      setLoginError("Invalid credentials. Use demo email: superadmin@venueeat.se & password: superadmin123");
+      setLoginError("Access Denied: Invalid Super Admin ID or Password. Only authorized platform owners may enter.");
     }
   };
 
-  // Quick Demo Auto-Fill & Login
+  // Quick Auto-Fill & Login for authorized Super Admin
   const handleQuickDemoLogin = () => {
-    setLoginEmail("superadmin@venueeat.se");
-    setLoginPassword("superadmin123");
+    setLoginEmail("admin@creativeventsnordic.com");
+    setLoginPassword("Venueeat36");
     setIsAuthenticated(true);
     setLoginError(null);
   };
@@ -365,7 +412,14 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
     };
 
     onAddNewEvent(newEvt);
-    setFormSuccess(`Successfully onboarded "${formName}"! You can now activate it or onboard vendor stalls.`);
+
+    // Automatically dispatch email invitation & open handover modal
+    setInvitationModalEvent({ event: newEvt, password: newEvt.adminPassword });
+    if (dispatchAdminInvitationEmail) {
+      dispatchAdminInvitationEmail(newEvt, newEvt.adminPassword);
+    }
+
+    setFormSuccess(`Successfully onboarded "${formName}"! Event Admin access credentials dispatched to ${newEvt.organizerEmail}.`);
     
     // Reset form fields
     setFormName("");
@@ -397,19 +451,19 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
           </p>
         </div>
 
-        {/* Demo Credentials Alert Banner */}
+        {/* Official Credentials Alert Banner */}
         <div className="bg-zinc-900 border-2 border-purple-500/30 rounded-2xl p-4 space-y-2 text-xs">
           <div className="flex justify-between items-center text-purple-300 font-bold font-mono">
             <span className="flex items-center gap-1.5 uppercase text-[10px] tracking-wider">
-              <KeyRound className="w-4 h-4 text-purple-400" /> Demo Super Admin Credentials
+              <KeyRound className="w-4 h-4 text-purple-400" /> Authorized Super Admin Account
             </span>
             <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-mono">
               Role: Master Platform
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-zinc-300 font-mono text-[11px] pt-1 border-t border-zinc-800">
-            <div>Email: <strong className="text-white">superadmin@venueeat.se</strong></div>
-            <div>Password: <strong className="text-white">superadmin123</strong> (or PIN <strong className="text-white">9988</strong>)</div>
+            <div>Email: <strong className="text-white">admin@creativeventsnordic.com</strong></div>
+            <div>Password: <strong className="text-white">Venueeat36</strong></div>
           </div>
         </div>
 
@@ -1184,6 +1238,30 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
                         </button>
 
                         <button
+                          type="button"
+                          disabled={sendingEmailId === evt.id}
+                          onClick={() => handleSendAdminEmail(evt)}
+                          className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          {sendingEmailId === evt.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Dispatching...</span>
+                            </>
+                          ) : emailSentMap[evt.id] ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+                              <span>Email Dispatched ✓</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Send Access Email</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
                           onClick={() => handleCopyCredentials(evt)}
                           className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-zinc-200 transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         >
@@ -1199,6 +1277,15 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
                             </>
                           )}
                         </button>
+
+                        <a
+                          href={`mailto:${evt.organizerEmail}?subject=${encodeURIComponent(`VenueEat Access Granted: ${evt.name}`)}&body=${encodeURIComponent(`Hej ${evt.adminName || "Organizer"}!\n\nHere are your access credentials for ${evt.name}:\n\nAdmin Portal: ${window.location.origin}/admin\nLogin ID (Email): ${evt.organizerEmail}\nPassword: ${pwd}\n\nPlease keep these confidential.`)}`}
+                          className="text-[10px] text-purple-600 hover:text-purple-800 font-mono font-bold text-center underline pt-0.5"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open in Email App &rarr;
+                        </a>
                       </div>
                     </div>
                   );
@@ -1371,23 +1458,32 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
                             <span>Edit Event & Admin Access</span>
                           </button>
 
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="flex gap-2">
                             <button
                               onClick={() => handleSelectEvent(evt.id)}
-                              className={`flex items-center justify-center gap-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              className={`flex-1 flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                                 isActive
                                   ? "bg-orange-500 text-white shadow-xs"
                                   : "bg-zinc-100 hover:bg-zinc-200 text-zinc-800"
                               }`}
                             >
-                              {isActive ? "Active in Demo" : "Activate Context"}
+                              {isActive ? "Active in Demo" : "Activate"}
                             </button>
 
                             <button
                               onClick={() => setInspectEvent(evt)}
-                              className="flex items-center justify-center gap-1 py-2 px-3 rounded-xl border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-bold transition-all cursor-pointer"
+                              className="flex-1 flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-700 text-xs font-bold transition-all cursor-pointer"
                             >
-                              Inspect Details
+                              Inspect
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setEventToDelete(evt)}
+                              className="p-2 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 transition-all cursor-pointer"
+                              title="Delete Festival Event"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -1504,6 +1600,15 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Edit Event & Admin Access</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEventToDelete(inspectEvent)}
+                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-rose-200"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Delete Festival</span>
                 </button>
 
                 <button
@@ -1921,24 +2026,52 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
 
               {/* Bottom Form Actions */}
               <div className="pt-3 border-t border-zinc-200 flex flex-col sm:flex-row justify-between items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleCopyCredentials({
-                    ...editEvent,
-                    name: editName,
-                    code: editCode,
-                    location: editLocation,
-                    startDate: editStartDate,
-                    endDate: editEndDate,
-                    organizerEmail: editAdminEmail,
-                    adminName: editAdminName,
-                    adminPassword: editAdminPassword
-                  })}
-                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Copy className="w-3.5 h-3.5 text-zinc-500" />
-                  <span>{copiedId === editEvent.id ? "Credentials Copied!" : "Copy Invitation Note"}</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEventToDelete(editEvent);
+                    }}
+                    className="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Event</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSendAdminEmail({
+                      ...editEvent,
+                      name: editName,
+                      organizerEmail: editAdminEmail,
+                      adminName: editAdminName,
+                      adminPassword: editAdminPassword
+                    })}
+                    className="px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Email Credentials</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCredentials({
+                      ...editEvent,
+                      name: editName,
+                      code: editCode,
+                      location: editLocation,
+                      startDate: editStartDate,
+                      endDate: editEndDate,
+                      organizerEmail: editAdminEmail,
+                      adminName: editAdminName,
+                      adminPassword: editAdminPassword
+                    })}
+                    className="px-3.5 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-100 text-zinc-700 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>{copiedId === editEvent.id ? "Copied!" : "Copy Note"}</span>
+                  </button>
+                </div>
 
                 <div className="flex gap-2 w-full sm:w-auto">
                   <button
@@ -1961,6 +2094,126 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
           </div>
         </div>
       )}
+
+      {/* CONFIRM DELETE EVENT MODAL */}
+      {eventToDelete && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-zinc-200 text-left animate-slideUp">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-display font-black text-lg text-zinc-900">Delete Festival Event?</h3>
+              <p className="text-xs text-zinc-600">
+                Are you sure you want to permanently delete <strong>"{eventToDelete.name}"</strong>? This will remove the event, its food stalls, and its admin login credentials from Cloud Firestore.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEventToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-xs font-bold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Event</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EMAIL HANDOVER & DISPATCH MODAL */}
+      {invitationModalEvent && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 md:p-7 space-y-5 shadow-2xl border border-zinc-200 text-left animate-slideUp">
+            <div className="flex justify-between items-start border-b border-zinc-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-base text-zinc-900">
+                    Event Admin Access Credentials
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 font-medium">
+                    {invitationModalEvent.event.name} ({invitationModalEvent.event.code})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInvitationModalEvent(null)}
+                className="text-zinc-400 hover:text-zinc-600 p-1 rounded-xl cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Credential summary */}
+            <div className="bg-zinc-950 text-white rounded-2xl p-4 space-y-2.5 font-mono text-xs border border-zinc-800">
+              <div className="flex justify-between items-center border-b border-zinc-800/80 pb-2">
+                <span className="text-zinc-400 text-[11px]">Recipient Email:</span>
+                <strong className="text-orange-400 font-bold">{invitationModalEvent.event.organizerEmail}</strong>
+              </div>
+              <div className="flex justify-between items-center border-b border-zinc-800/80 pb-2">
+                <span className="text-zinc-400 text-[11px]">Assigned Password:</span>
+                <strong className="text-sky-400 font-bold text-sm tracking-wide">
+                  {invitationModalEvent.password || invitationModalEvent.event.adminPassword || "eventadmin2026"}
+                </strong>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-400 text-[11px]">Portal Link:</span>
+                <span className="text-zinc-300 font-bold">{window.location.origin}/admin</span>
+              </div>
+            </div>
+
+            {/* Direct Action Buttons */}
+            <div className="space-y-2.5 pt-1">
+              <a
+                href={`mailto:${invitationModalEvent.event.organizerEmail}?subject=${encodeURIComponent(`VenueEat Access Granted: ${invitationModalEvent.event.name}`)}&body=${encodeURIComponent(
+                  `Hej ${invitationModalEvent.event.adminName || "Event Organizer"}!\n\n` +
+                  `You have been granted access to the VenueEat Event Admin portal for "${invitationModalEvent.event.name}".\n\n` +
+                  `--------------------------------------------------\n` +
+                  `ADMIN PORTAL URL: ${window.location.origin}/admin\n` +
+                  `LOGIN ID (EMAIL): ${invitationModalEvent.event.organizerEmail}\n` +
+                  `TEMPORARY PASSWORD: ${invitationModalEvent.password || invitationModalEvent.event.adminPassword || "eventadmin2026"}\n` +
+                  `--------------------------------------------------\n\n` +
+                  `You can also sign in with One-Click Google Sign-In using this email address.\n\n` +
+                  `Best regards,\nVenueEat Operations Team`
+                )}`}
+                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-3.5 rounded-2xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer text-center"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Send className="w-4 h-4" />
+                <span>🚀 Send via Email Client (Gmail / Outlook)</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyCredentials(invitationModalEvent.event);
+                }}
+                className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs py-3 rounded-2xl border border-zinc-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Copy className="w-4 h-4 text-zinc-500" />
+                <span>{copiedId === invitationModalEvent.event.id ? "✓ Copied to Clipboard!" : "Copy Complete Email Message"}</span>
+              </button>
+            </div>
+
+            <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
+              Tapping <strong>"Send via Email Client"</strong> immediately opens your mail app with the recipient, subject, and message pre-filled so you can deliver it directly to their inbox with 1 click.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

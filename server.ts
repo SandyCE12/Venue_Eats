@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import swishInitiateHandler from "./api/swish-initiate";
 import swishStatusHandler from "./api/swish-status";
 import swishCallbackHandler from "./api/swish-callback";
+import sendEmailHandler from "./api/send-email";
 
 dotenv.config();
 
@@ -313,6 +314,11 @@ app.get("/api/swish-status", (req, res) => {
 // API: Swish Server Callback
 app.post("/api/swish-callback", (req, res) => {
   swishCallbackHandler(req as any, res as any);
+});
+
+// API: Send Event Admin Email Invitation
+app.post("/api/send-email", (req, res) => {
+  sendEmailHandler(req as any, res as any);
 });
 
 // Mount Vite middleware for development or serve build folder in production

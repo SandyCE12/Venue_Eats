@@ -179,3 +179,10 @@ export interface BusinessMetrics {
   vipPassPrice: number; // skip-the-line pass in SEK
   vipPassAdoptionRate: number; // % of users buying VIP (e.g. 5%)
 }
+
+export interface SuperAdminAccount {
+  email: string;
+  password: string;
+  name: string;
+  role: "Owner" | "Operations" | "Finance";
+}
