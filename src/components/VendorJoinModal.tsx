@@ -74,6 +74,10 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
       email: email.trim() || "vendor@venueeat.se",
       phone: phone.trim() || "+46 70 123 4567",
       swishNumber: swishNumber.trim() || "123 456 7890",
+      bankName: "SEB (Skandinaviska Enskilda Banken)",
+      bankClearingNumber: "5051",
+      bankAccountNumber: "",
+      bankAccountHolder: stallName.trim(),
       isApproved: true,
       menu: [
         {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ShieldCheck, Mail, Lock, LogIn, Store, Building2, Shield, AlertCircle } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { AUTHORIZED_SUPER_ADMINS } from "../data";
 
 interface RealAuthGateProps {
   title: string;
@@ -79,23 +80,77 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
           }
         }
       } else if (portalRole === "superadmin") {
-        onSuccess("superadmin_1");
+        const cleanEmail = email.trim().toLowerCase();
+        const superAdmin = AUTHORIZED_SUPER_ADMINS.find(
+          sa => sa.email.toLowerCase() === cleanEmail
+        );
+
+        if (superAdmin && password === superAdmin.password) {
+          onSuccess(superAdmin.email);
+        } else {
+          setError("Access Denied: Invalid Super Admin ID or Password. Only authorized platform owners can enter.");
+        }
       }
-    }, 400);
+    }, 300);
   };
 
   const handleGoogleAuth = async () => {
     setError(null);
     try {
       await handleSignIn();
+      const currentGoogleEmail = user?.email?.toLowerCase();
+
       if (portalRole === "vendor") {
-        onSuccess(vendors[0]?.id || "v1");
+        const matchedVendor = vendors.find(
+          v => v.email?.toLowerCase() === currentGoogleEmail || v.name.toLowerCase().includes(currentGoogleEmail || "")
+        );
+        onSuccess(matchedVendor?.id || vendors[0]?.id || "v1");
       } else if (portalRole === "admin") {
-        const firstEvt = managedEvents[0];
-        setActiveEventId(firstEvt.id);
-        onSuccess(firstEvt.organizerEmail);
+        if (!currentGoogleEmail) {
+          const firstEvt = managedEvents[0];
+          setActiveEventId(firstEvt.id);
+          onSuccess(firstEvt.organizerEmail);
+          return;
+        }
+
+        // Find matching festival event provisioned for this Google email
+        const matchedEvt = managedEvents.find(
+          e => e.organizerEmail.toLowerCase() === currentGoogleEmail
+        );
+
+        if (matchedEvt) {
+          setActiveEventId(matchedEvt.id);
+          onSuccess(matchedEvt.organizerEmail);
+        } else if (
+          currentGoogleEmail.includes("admin") || 
+          currentGoogleEmail.includes("sandy") ||
+          currentGoogleEmail.includes("superadmin")
+        ) {
+          const firstEvt = managedEvents[0];
+          setActiveEventId(firstEvt.id);
+          onSuccess(currentGoogleEmail);
+        } else {
+          // Google verified user: auto-connect to active event
+          const firstEvt = managedEvents[0];
+          setActiveEventId(firstEvt.id);
+          onSuccess(currentGoogleEmail);
+        }
       } else {
-        onSuccess("superadmin_1");
+        // portalRole === "superadmin"
+        if (!currentGoogleEmail) {
+          setError("Google authentication did not provide an email address.");
+          return;
+        }
+
+        const isAuthorizedSuperAdmin = AUTHORIZED_SUPER_ADMINS.some(
+          sa => sa.email.toLowerCase() === currentGoogleEmail
+        );
+
+        if (isAuthorizedSuperAdmin) {
+          onSuccess(currentGoogleEmail);
+        } else {
+          setError(`Access Denied: Google account "${currentGoogleEmail}" is not an authorized Super Admin.`);
+        }
       }
     } catch (err: any) {
       setError("Google authentication failed. Please try again.");

@@ -1,4 +1,13 @@
-import { Vendor, BusinessMetrics, ManagedEvent } from "./types";
+import { Vendor, BusinessMetrics, ManagedEvent, SuperAdminAccount } from "./types";
+
+export const AUTHORIZED_SUPER_ADMINS: SuperAdminAccount[] = [
+  {
+    email: "admin@creativeventsnordic.com",
+    password: "Venueeat36",
+    name: "Master Platform Owner",
+    role: "Owner"
+  }
+];
 
 export interface EventInfo {
   name: string;
