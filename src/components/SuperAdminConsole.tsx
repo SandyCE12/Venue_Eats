@@ -41,7 +41,8 @@ import {
   Mail,
   Send,
   Loader2,
-  Trash2
+  Trash2,
+  AlertCircle
 } from "lucide-react";
 import type { ManagedEvent, EventStatus, EventAdminPermissions } from "../types";
 import { useApp } from "../context/AppContext";
@@ -99,6 +100,19 @@ export default function SuperAdminConsole({
   const [eventToDelete, setEventToDelete] = useState<ManagedEvent | null>(null);
   const [invitationModalEvent, setInvitationModalEvent] = useState<{ event: ManagedEvent; password?: string } | null>(null);
 
+  // Direct modal Resend API dispatch states
+  const [isDispatchingModalEmail, setIsDispatchingModalEmail] = useState(false);
+  const [modalDispatchResult, setModalDispatchResult] = useState<{
+    success?: boolean;
+    message?: string;
+    error?: string;
+    id?: string;
+  } | null>(null);
+  const [customResendKeyInput, setCustomResendKeyInput] = useState(() => {
+    return typeof window !== "undefined" ? localStorage.getItem("venueeat_resend_api_key") || "" : "";
+  });
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
+
   const { dispatchAdminInvitationEmail } = useApp();
 
   const handleConfirmDelete = () => {
@@ -115,18 +129,59 @@ export default function SuperAdminConsole({
     setEventToDelete(null);
   };
 
-  const handleSendAdminEmail = async (evt: ManagedEvent) => {
-    // Open on-screen handover / dispatch dialog
-    setInvitationModalEvent({ event: evt, password: evt.adminPassword || "eventadmin2026" });
-    setSendingEmailId(evt.id);
+  const handleDirectResendFromModal = async () => {
+    if (!invitationModalEvent) return;
+    setIsDispatchingModalEmail(true);
+    setModalDispatchResult(null);
+
     try {
       if (dispatchAdminInvitationEmail) {
-        await dispatchAdminInvitationEmail(evt);
+        const res = await dispatchAdminInvitationEmail(
+          invitationModalEvent.event,
+          invitationModalEvent.password,
+          customResendKeyInput.trim() || undefined
+        );
+        setModalDispatchResult(res);
+        if (res.success) {
+          setEmailSentMap(prev => ({ ...prev, [invitationModalEvent.event.id]: true }));
+        }
       }
-      setEmailSentMap(prev => ({ ...prev, [evt.id]: true }));
-    } catch (e) {
-      console.warn("Could not dispatch email:", e);
+    } catch (err: any) {
+      setModalDispatchResult({
+        success: false,
+        error: err?.message || "Unexpected error triggering Resend delivery.",
+      });
     } finally {
+      setIsDispatchingModalEmail(false);
+    }
+  };
+
+  const handleSendAdminEmail = async (evt: ManagedEvent) => {
+    // Open on-screen modal and trigger direct Resend dispatch
+    setInvitationModalEvent({ event: evt, password: evt.adminPassword || "eventadmin2026" });
+    setIsDispatchingModalEmail(true);
+    setModalDispatchResult(null);
+    setSendingEmailId(evt.id);
+
+    try {
+      if (dispatchAdminInvitationEmail) {
+        const res = await dispatchAdminInvitationEmail(
+          evt, 
+          evt.adminPassword, 
+          customResendKeyInput.trim() || undefined
+        );
+        setModalDispatchResult(res);
+        if (res.success) {
+          setEmailSentMap(prev => ({ ...prev, [evt.id]: true }));
+        }
+      }
+    } catch (e: any) {
+      setModalDispatchResult({
+        success: false,
+        error: e?.message || "Could not dispatch email via Resend API",
+      });
+    } finally {
+      setIsDispatchingModalEmail(false);
       setSendingEmailId(null);
     }
   };
@@ -413,13 +468,35 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
 
     onAddNewEvent(newEvt);
 
-    // Automatically dispatch email invitation & open handover modal
+    // Automatically open modal and trigger direct Resend API dispatch
     setInvitationModalEvent({ event: newEvt, password: newEvt.adminPassword });
+    setIsDispatchingModalEmail(true);
+    setModalDispatchResult(null);
+
     if (dispatchAdminInvitationEmail) {
-      dispatchAdminInvitationEmail(newEvt, newEvt.adminPassword);
+      dispatchAdminInvitationEmail(
+        newEvt, 
+        newEvt.adminPassword, 
+        customResendKeyInput.trim() || undefined
+      )
+        .then((res) => {
+          setModalDispatchResult(res);
+          if (res.success) {
+            setEmailSentMap(prev => ({ ...prev, [newEvt.id]: true }));
+          }
+        })
+        .catch((err) => {
+          setModalDispatchResult({
+            success: false,
+            error: err?.message || "Delivery failed",
+          });
+        })
+        .finally(() => {
+          setIsDispatchingModalEmail(false);
+        });
     }
 
-    setFormSuccess(`Successfully onboarded "${formName}"! Event Admin access credentials dispatched to ${newEvt.organizerEmail}.`);
+    setFormSuccess(`Successfully onboarded "${formName}"! Event Admin access credentials prepared for ${newEvt.organizerEmail}.`);
     
     // Reset form fields
     setFormName("");
@@ -2173,27 +2250,106 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
               </div>
             </div>
 
+            {/* Real-time Resend API Status Banner */}
+            {modalDispatchResult && (
+              modalDispatchResult.success ? (
+                <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 flex items-start gap-3 animate-fadeIn">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-left space-y-0.5">
+                    <div className="text-xs font-black text-emerald-900">
+                      ✓ Email Successfully Dispatched via Resend API!
+                    </div>
+                    <p className="text-[11px] text-emerald-800 font-medium">
+                      Credentials delivered directly to <strong>{invitationModalEvent.event.organizerEmail}</strong>.
+                    </p>
+                    {modalDispatchResult.id && (
+                      <span className="inline-block text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded">
+                        Resend ID: {modalDispatchResult.id}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-rose-50 border border-rose-300 rounded-2xl p-3.5 space-y-2 text-left animate-fadeIn">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-black text-rose-900">
+                        Resend Delivery Notice
+                      </div>
+                      <p className="text-[11px] text-rose-800 leading-relaxed font-medium">
+                        {modalDispatchResult.error || "Could not dispatch email via Resend."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-1 border-t border-rose-200/80 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowKeyConfig(!showKeyConfig)}
+                      className="text-[10px] text-rose-700 hover:text-rose-900 font-mono font-bold underline cursor-pointer"
+                    >
+                      {showKeyConfig ? "Close API Key Settings" : "⚙️ Configure / Check Resend API Key"}
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* Optional Resend API Key Config box */}
+            {showKeyConfig && (
+              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 space-y-2 text-left animate-fadeIn">
+                <div className="flex justify-between items-center text-[11px] font-mono font-bold text-zinc-700">
+                  <span>Resend API Key:</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Stored in browser</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    placeholder="re_xxxxxxxxxxxxxx"
+                    value={customResendKeyInput}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      setCustomResendKeyInput(v);
+                      if (v) {
+                        localStorage.setItem("venueeat_resend_api_key", v);
+                      } else {
+                        localStorage.removeItem("venueeat_resend_api_key");
+                      }
+                    }}
+                    className="flex-1 bg-white border border-zinc-300 focus:border-orange-500 rounded-xl px-3 py-1.5 text-xs font-mono outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-tight">
+                  You can set <code>RESEND_API_KEY</code> in Vercel project environment variables for production. If testing locally or overriding, paste it here.
+                </p>
+              </div>
+            )}
+
             {/* Direct Action Buttons */}
             <div className="space-y-2.5 pt-1">
-              <a
-                href={`mailto:${invitationModalEvent.event.organizerEmail}?subject=${encodeURIComponent(`VenueEat Access Granted: ${invitationModalEvent.event.name}`)}&body=${encodeURIComponent(
-                  `Hej ${invitationModalEvent.event.adminName || "Event Organizer"}!\n\n` +
-                  `You have been granted access to the VenueEat Event Admin portal for "${invitationModalEvent.event.name}".\n\n` +
-                  `--------------------------------------------------\n` +
-                  `ADMIN PORTAL URL: ${window.location.origin}/admin\n` +
-                  `LOGIN ID (EMAIL): ${invitationModalEvent.event.organizerEmail}\n` +
-                  `TEMPORARY PASSWORD: ${invitationModalEvent.password || invitationModalEvent.event.adminPassword || "eventadmin2026"}\n` +
-                  `--------------------------------------------------\n\n` +
-                  `You can also sign in with One-Click Google Sign-In using this email address.\n\n` +
-                  `Best regards,\nVenueEat Operations Team`
-                )}`}
-                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-3.5 rounded-2xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer text-center"
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={handleDirectResendFromModal}
+                disabled={isDispatchingModalEmail}
+                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-3.5 rounded-2xl shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed text-center"
               >
-                <Send className="w-4 h-4" />
-                <span>🚀 Send via Email Client (Gmail / Outlook)</span>
-              </a>
+                {isDispatchingModalEmail ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Sending via Resend API...</span>
+                  </>
+                ) : modalDispatchResult?.success ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 text-white" />
+                    <span>Re-Send Email via Resend API</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 text-yellow-300" />
+                    <span>⚡ Send Email Directly via Resend API</span>
+                  </>
+                )}
+              </button>
 
               <button
                 type="button"
@@ -2208,7 +2364,7 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
             </div>
 
             <p className="text-[11px] text-zinc-500 text-center leading-relaxed">
-              Tapping <strong>"Send via Email Client"</strong> immediately opens your mail app with the recipient, subject, and message pre-filled so you can deliver it directly to their inbox with 1 click.
+              Tapping <strong>"Send Email Directly via Resend API"</strong> triggers an automated dispatch to the Event Manager's inbox using your configured Resend credentials.
             </p>
           </div>
         </div>

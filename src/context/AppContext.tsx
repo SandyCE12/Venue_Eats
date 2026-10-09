@@ -91,7 +91,7 @@ interface AppContextType {
   handleAddNewEvent: (newEvent: ManagedEvent) => Promise<void>;
   handleUpdateEvent: (updatedEvent: ManagedEvent) => Promise<void>;
   handleDeleteEvent: (eventId: string) => Promise<void>;
-  dispatchAdminInvitationEmail: (event: ManagedEvent, customPassword?: string) => Promise<{ success: boolean; message: string }>;
+  dispatchAdminInvitationEmail: (event: ManagedEvent, customPassword?: string, customApiKey?: string) => Promise<{ success: boolean; message: string; id?: string; error?: string }>;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
   /** The event the attendee has chosen from the selector screen (localStorage-backed). null = show selector. */
   selectedUserEventId: string | null;
@@ -642,8 +642,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const dispatchAdminInvitationEmail = async (
     event: ManagedEvent, 
-    customPassword?: string
-  ): Promise<{ success: boolean; message: string }> => {
+    customPassword?: string,
+    customApiKey?: string
+  ): Promise<{ success: boolean; message: string; id?: string; error?: string }> => {
     const password = customPassword || event.adminPassword || "eventadmin2026";
     const portalUrl = `${window.location.origin}/admin`;
     const perms = [
@@ -652,6 +653,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       event.adminPermissions?.canManageMap !== false ? "Venue Map" : null,
       event.adminPermissions?.canViewFinancials !== false ? "Financial Audits" : null
     ].filter(Boolean).join(", ");
+
+    const savedApiKey = customApiKey || (typeof window !== "undefined" ? localStorage.getItem("venueeat_resend_api_key") || undefined : undefined);
 
     try {
       const response = await fetch("/api/send-email", {
@@ -668,19 +671,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           loginUrl: portalUrl,
           password: password,
           permissions: perms,
+          apiKey: savedApiKey,
         }),
       });
 
-      const resData = await response.json();
+      const resData = await response.json().catch(() => null);
+
+      if (!response.ok || !resData?.success) {
+        const errorMsg = resData?.error || `Email delivery failed (Status ${response.status})`;
+        console.warn("Resend email delivery failed:", errorMsg, resData);
+        logActivity(`Resend email delivery failed for ${event.organizerEmail}: ${errorMsg}`, "admin", "warning");
+        return {
+          success: false,
+          message: errorMsg,
+          error: errorMsg,
+        };
+      }
 
       try {
-        await addDoc(collection(db, "event_invitations"), {
+        const inviteRef = doc(collection(db, "event_invitations"));
+        await setDoc(inviteRef, {
           eventId: event.id,
           eventName: event.name,
           recipientEmail: event.organizerEmail,
           recipientName: event.adminName || "Event Organizer",
           sentAt: Date.now(),
           status: "Dispatched",
+          resendId: resData.id || null,
           permissions: perms,
           portalUrl
         });
@@ -689,20 +706,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
 
       logActivity(
-        `Dispatched admin access invitation email to ${event.organizerEmail} for ${event.name}.`, 
+        `Dispatched admin access invitation email to ${event.organizerEmail} for ${event.name} via Resend.`, 
         "admin", 
         "success"
       );
 
       return {
         success: true,
-        message: resData?.message || `Access invitation email successfully sent to ${event.organizerEmail}!`
+        message: resData.message || `Access invitation email successfully delivered to ${event.organizerEmail}!`,
+        id: resData.id
       };
     } catch (err: any) {
-      console.warn("Email API error, returning fallback confirmation:", err);
+      console.error("Network or execution error calling /api/send-email:", err);
       return {
-        success: true,
-        message: `Access credentials prepared for ${event.organizerEmail}. Direct login link ready.`
+        success: false,
+        message: err?.message || "Failed to reach /api/send-email endpoint.",
+        error: err?.message || "Network error",
       };
     }
   };

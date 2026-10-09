@@ -17,6 +17,15 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   }
 
   try {
+    let body = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        // preserve body as is
+      }
+    }
+
     const { 
       to, 
       adminName, 
@@ -27,8 +36,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       endDate, 
       loginUrl, 
       password, 
-      permissions 
-    } = req.body || {};
+      permissions,
+      apiKey: customApiKey,
+      fromEmail: customFromEmail,
+    } = body || {};
 
     if (!to || !eventName) {
       return res.status(400).json({ error: "Missing required fields (to, eventName)." });
@@ -38,6 +49,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const portalLink = loginUrl || "https://venue-eats.vercel.app/admin";
     const pass = password || "eventadmin2026";
     const subject = `VenueEat Access Granted: ${eventName} (${eventCode || "EVT"}) Admin Portal`;
+
+    // 1. Resolve Resend API Key from request body, process.env.RESEND_API_KEY, or VITE_RESEND_API_KEY
+    const resendApiKey = (
+      customApiKey || 
+      process.env.RESEND_API_KEY || 
+      process.env.VITE_RESEND_API_KEY || 
+      ""
+    ).trim();
+
+    if (!resendApiKey) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing Resend API Key. Please add RESEND_API_KEY to your Vercel Project Environment Variables (and redeploy), or configure it in the Super Admin Console.",
+        needsApiKey: true,
+      });
+    }
 
     const htmlContent = `
 <!DOCTYPE html>
@@ -119,75 +146,102 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 </html>
     `;
 
-    // 1. If Resend API key is provided, send real email via Resend API
-    const resendApiKey = process.env.RESEND_API_KEY;
-    if (resendApiKey) {
-      try {
-        const payload = JSON.stringify({
-          from: process.env.EMAIL_FROM || "VenueEat Onboarding <onboarding@resend.dev>",
-          to: [to],
-          subject,
-          html: htmlContent,
-        });
+    const sender = (
+      customFromEmail || 
+      process.env.EMAIL_FROM || 
+      "VenueEat Onboarding <onboarding@resend.dev>"
+    ).trim();
 
-        await new Promise((resolve, reject) => {
-          const req = https.request(
-            {
-              hostname: "api.resend.com",
-              port: 443,
-              path: "/emails",
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${resendApiKey}`,
-                "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(payload),
-              },
+    const payload = JSON.stringify({
+      from: sender,
+      to: [String(to).trim()],
+      subject,
+      html: htmlContent,
+    });
+
+    let resendResponse: Response | null = null;
+    let resData: any = null;
+
+    try {
+      resendResponse = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      });
+      resData = await resendResponse.json().catch(() => null);
+    } catch (fetchErr: any) {
+      // Fallback using https.request if global fetch encounters network issues
+      resData = await new Promise((resolve, reject) => {
+        const reqPost = https.request(
+          {
+            hostname: "api.resend.com",
+            port: 443,
+            path: "/emails",
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(payload),
             },
-            (res) => {
-              let resData = "";
-              res.on("data", (chunk) => (resData += chunk));
-              res.on("end", () => {
-                if (res.statusCode && res.statusCode < 300) {
-                  resolve(resData);
-                } else {
-                  console.warn("Resend API warning status:", res.statusCode, resData);
-                  resolve(resData);
-                }
-              });
-            }
-          );
-          req.on("error", (e) => reject(e));
-          req.write(payload);
-          req.end();
-        });
-
-        return res.status(200).json({
-          success: true,
-          mode: "live_resend",
-          to,
-          subject,
-          timestamp: Date.now(),
-        });
-      } catch (liveErr) {
-        console.warn("Resend email delivery failed, returning verified simulated response:", liveErr);
-      }
+          },
+          (resp) => {
+            let buffer = "";
+            resp.on("data", (chunk) => (buffer += chunk));
+            resp.on("end", () => {
+              try {
+                resolve({ ok: (resp.statusCode || 500) < 300, status: resp.statusCode, data: JSON.parse(buffer) });
+              } catch {
+                resolve({ ok: (resp.statusCode || 500) < 300, status: resp.statusCode, data: { message: buffer } });
+              }
+            });
+          }
+        );
+        reqPost.on("error", (e) => reject(e));
+        reqPost.write(payload);
+        reqPost.end();
+      });
     }
 
-    // 2. Default verified dispatch response
-    console.log(`[Email Dispatcher] Access Invitation sent to ${to} for event ${eventName}.`);
+    const isOk = resendResponse ? resendResponse.ok : resData?.ok;
+    const statusCode = resendResponse ? resendResponse.status : (resData?.status || 500);
+    const parsedData = resendResponse ? resData : (resData?.data || resData);
+
+    if (!isOk) {
+      console.warn("[Resend API Error]:", statusCode, parsedData);
+      let userFriendlyMessage = parsedData?.message || parsedData?.name || "Resend email delivery failed.";
+
+      if (statusCode === 403 && typeof userFriendlyMessage === "string" && userFriendlyMessage.includes("testing emails")) {
+        userFriendlyMessage = `Resend Sandbox Limit: In testing mode, onboarding@resend.dev can only send to the email address registered on your Resend account. To send to external addresses (${to}), verify a custom domain in your Resend Dashboard (resend.com/domains).`;
+      } else if (statusCode === 401) {
+        userFriendlyMessage = "Invalid Resend API Key. Please verify the RESEND_API_KEY added in Vercel or enter your key in the console.";
+      }
+
+      return res.status(statusCode).json({
+        success: false,
+        error: userFriendlyMessage,
+        details: parsedData,
+        statusCode,
+      });
+    }
+
     return res.status(200).json({
       success: true,
-      mode: "verified_dispatch",
+      mode: "live_resend",
+      id: parsedData?.id,
       to,
       subject,
-      adminName: recipientName,
-      eventName,
       timestamp: Date.now(),
-      message: `Access email successfully prepared and dispatched to ${to}.`
+      message: `Access email successfully dispatched to ${to} via Resend (ID: ${parsedData?.id || "confirmed"})!`,
     });
 
   } catch (err: any) {
     console.error("Error in send-email handler:", err);
-    return res.status(500).json({ error: "Failed to dispatch email", details: err?.message });
+    return res.status(500).json({ 
+      success: false, 
+      error: err?.message || "Failed to dispatch email via Resend." 
+    });
   }
 }
