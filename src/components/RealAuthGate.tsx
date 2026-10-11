@@ -40,44 +40,31 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
       setIsSubmitting(false);
 
       if (portalRole === "vendor") {
-        // Find matching vendor by email or match active vendors
+        const cleanEmail = email.trim().toLowerCase();
         const matchedVendor = vendors.find(
-          v => v.email?.toLowerCase() === email.toLowerCase() || v.name.toLowerCase().includes(email.toLowerCase())
+          v => v.email?.trim().toLowerCase() === cleanEmail || v.name.toLowerCase() === cleanEmail
         );
         if (matchedVendor) {
           onSuccess(matchedVendor.id);
         } else {
-          // If no vendor found with exact email, attach to first or new ID
-          onSuccess(vendors[0]?.id || "v1");
+          setError(`No vendor stall registered with email "${email}".`);
         }
       } else if (portalRole === "admin") {
         const cleanEmail = email.trim().toLowerCase();
         const matchedEvt = managedEvents.find(
-          e => e.organizerEmail.toLowerCase() === cleanEmail
+          e => e.organizerEmail.trim().toLowerCase() === cleanEmail
         );
 
         if (matchedEvt) {
-          const expectedPassword = matchedEvt.adminPassword || "admin123";
-          if (
-            password.trim() === expectedPassword || 
-            password.trim() === "admin123" || 
-            password.trim() === "superadmin123" ||
-            password.trim() === "9988"
-          ) {
+          const expectedPassword = matchedEvt.adminPassword || "eventadmin2026";
+          if (password.trim() === expectedPassword) {
             setActiveEventId(matchedEvt.id);
             onSuccess(matchedEvt.organizerEmail);
           } else {
-            setError(`Incorrect password for ${matchedEvt.name}. Enter the password configured by Super Admin.`);
+            setError(`Incorrect password for ${matchedEvt.name}. Please enter the password configured by Super Admin.`);
           }
         } else {
-          // If master admin or demo email
-          if (cleanEmail.includes("admin") || cleanEmail.includes("sandy") || password.trim() === "admin123") {
-            const firstEvt = managedEvents[0];
-            setActiveEventId(firstEvt.id);
-            onSuccess(cleanEmail || firstEvt.organizerEmail);
-          } else {
-            setError(`No Event Admin account found for "${email}". Check Super Admin console for assigned credentials or click a pre-authorized account below.`);
-          }
+          setError(`No Event Admin account found for "${email}". Check Super Admin console for the email assigned to your event.`);
         }
       } else if (portalRole === "superadmin") {
         const cleanEmail = email.trim().toLowerCase();
@@ -96,52 +83,53 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
 
   const handleGoogleAuth = async () => {
     setError(null);
+    setIsSubmitting(true);
     try {
-      await handleSignIn();
-      const currentGoogleEmail = user?.email?.toLowerCase();
+      const signedInUser = await handleSignIn();
+      const currentGoogleEmail = signedInUser?.email?.trim().toLowerCase();
+
+      if (!currentGoogleEmail) {
+        setError("Could not retrieve email from Google Sign-In. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
 
       if (portalRole === "vendor") {
         const matchedVendor = vendors.find(
-          v => v.email?.toLowerCase() === currentGoogleEmail || v.name.toLowerCase().includes(currentGoogleEmail || "")
+          v => v.email?.trim().toLowerCase() === currentGoogleEmail || v.name.toLowerCase().includes(currentGoogleEmail)
         );
-        onSuccess(matchedVendor?.id || vendors[0]?.id || "v1");
-      } else if (portalRole === "admin") {
-        if (!currentGoogleEmail) {
-          const firstEvt = managedEvents[0];
-          setActiveEventId(firstEvt.id);
-          onSuccess(firstEvt.organizerEmail);
-          return;
+        if (matchedVendor) {
+          onSuccess(matchedVendor.id);
+        } else {
+          setError(`Access Denied: Google account "${currentGoogleEmail}" is not associated with any registered food stall.`);
         }
-
-        // Find matching festival event provisioned for this Google email
+      } else if (portalRole === "admin") {
+        // Find matching festival event provisioned for this exact Google email
         const matchedEvt = managedEvents.find(
-          e => e.organizerEmail.toLowerCase() === currentGoogleEmail
+          e => e.organizerEmail.trim().toLowerCase() === currentGoogleEmail
         );
 
         if (matchedEvt) {
           setActiveEventId(matchedEvt.id);
           onSuccess(matchedEvt.organizerEmail);
         } else if (
-          currentGoogleEmail.includes("admin") || 
-          currentGoogleEmail.includes("sandy") ||
-          currentGoogleEmail.includes("superadmin")
+          // Super Admins can also inspect event admin console
+          AUTHORIZED_SUPER_ADMINS.some(sa => sa.email.toLowerCase() === currentGoogleEmail)
         ) {
-          const firstEvt = managedEvents[0];
-          setActiveEventId(firstEvt.id);
-          onSuccess(currentGoogleEmail);
+          const defaultEvt = managedEvents.find(e => e.id === activeEventId) || managedEvents[0];
+          if (defaultEvt) {
+            setActiveEventId(defaultEvt.id);
+            onSuccess(currentGoogleEmail);
+          } else {
+            setError("No active events found.");
+          }
         } else {
-          // Google verified user: auto-connect to active event
-          const firstEvt = managedEvents[0];
-          setActiveEventId(firstEvt.id);
-          onSuccess(currentGoogleEmail);
+          setError(
+            `Access Denied: Google account "${currentGoogleEmail}" is not registered as an Event Admin for any event. Please ask Super Admin to assign this email address to your event.`
+          );
         }
       } else {
         // portalRole === "superadmin"
-        if (!currentGoogleEmail) {
-          setError("Google authentication did not provide an email address.");
-          return;
-        }
-
         const isAuthorizedSuperAdmin = AUTHORIZED_SUPER_ADMINS.some(
           sa => sa.email.toLowerCase() === currentGoogleEmail
         );
@@ -153,14 +141,12 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
         }
       }
     } catch (err: any) {
-      setError("Google authentication failed. Please try again.");
+      if (err?.code !== "auth/popup-closed-by-user") {
+        setError(err?.message || "Google authentication failed. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-  };
-
-  const handleQuickFillAdmin = (evt: typeof managedEvents[0]) => {
-    setEmail(evt.organizerEmail);
-    setPassword(evt.adminPassword || "admin123");
-    setError(null);
   };
 
   return (
@@ -248,42 +234,14 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
           </div>
 
           <button
+            type="button"
+            disabled={isSubmitting}
             onClick={handleGoogleAuth}
-            className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs py-3 rounded-2xl transition-all border border-zinc-200 cursor-pointer flex items-center justify-center gap-2"
+            className="w-full bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs py-3.5 rounded-2xl transition-all border border-zinc-200 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>Sign In with Firebase Google Auth</span>
           </button>
-
-          {portalRole === "admin" && managedEvents && managedEvents.length > 0 && (
-            <div className="pt-3 border-t border-zinc-100 space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 font-mono uppercase tracking-wider">
-                <span>Authorized Event Admin Accounts</span>
-                <span className="text-[10px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">Super Admin Configured</span>
-              </div>
-              <p className="text-[11px] text-zinc-400">
-                Click any organizer profile below to auto-fill their credentials granted by Super Admin:
-              </p>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {managedEvents.slice(0, 4).map((evt) => (
-                  <button
-                    key={evt.id}
-                    type="button"
-                    onClick={() => handleQuickFillAdmin(evt)}
-                    className="w-full text-left p-2.5 rounded-xl border border-zinc-200 hover:border-orange-500 hover:bg-orange-50/50 transition-all flex items-center justify-between text-xs group cursor-pointer"
-                  >
-                    <div className="truncate">
-                      <div className="font-bold text-zinc-900 group-hover:text-orange-700 truncate">{evt.name}</div>
-                      <div className="text-[11px] text-zinc-500 font-mono truncate">{evt.organizerEmail} • Pass: {evt.adminPassword || "admin123"}</div>
-                    </div>
-                    <span className="shrink-0 text-[10px] font-bold bg-zinc-100 group-hover:bg-orange-500 group-hover:text-white px-2 py-1 rounded-lg transition-colors ml-2">
-                      Auto-Fill
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
