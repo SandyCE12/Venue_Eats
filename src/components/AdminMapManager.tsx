@@ -18,15 +18,21 @@ import { Vendor } from "../types";
 import { useApp } from "../context/AppContext";
 import EventMap from "./EventMap";
 
-export const AdminMapManager: React.FC = () => {
+interface AdminMapManagerProps {
+  vendors?: Vendor[];
+}
+
+export const AdminMapManager: React.FC<AdminMapManagerProps> = ({ vendors: propVendors }) => {
   const { 
-    vendors, 
+    vendors: contextVendors, 
     eventMapUrl, 
     handleUpdateEventMapUrl, 
     estimateVendorWaitTime,
     handleUpdateVendorProfile,
     setNotification
   } = useApp();
+
+  const vendors = propVendors || contextVendors;
 
   const [inputUrl, setInputUrl] = useState(eventMapUrl || "");
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null);

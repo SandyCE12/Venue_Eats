@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../context/AppContext";
 import { RealAuthGate } from "../components/RealAuthGate";
 import { 
@@ -37,7 +37,8 @@ import {
   Sparkles,
   ArrowUpRight,
   Clock,
-  HelpCircle
+  HelpCircle,
+  Trash2
 } from "lucide-react";
 import { AdminSalesCharts } from "../components/AdminSalesCharts";
 import EventMap from "../components/EventMap";
@@ -68,6 +69,7 @@ export const AdminPage: React.FC = () => {
     handleApproveVendor,
     handleSuspendVendor,
     handleAddNewVendor,
+    handleDeleteVendor,
     estimateVendorWaitTime,
     managedEvents,
     activeEventId,
@@ -84,9 +86,27 @@ export const AdminPage: React.FC = () => {
   const [selectedVendorForDetail, setSelectedVendorForDetail] = useState<Vendor | null>(null);
 
   // Dynamic Current Event based on loggedInAdminId or activeEventId
-  const currentEvent = managedEvents.find(
-    e => e.id === activeEventId || e.organizerEmail.toLowerCase() === loggedInAdminId?.toLowerCase()
-  ) || managedEvents[0];
+  const currentEvent = 
+    (loggedInAdminId && managedEvents.find(
+      e => e.organizerEmail?.trim().toLowerCase() === loggedInAdminId.trim().toLowerCase()
+    )) ||
+    managedEvents.find(e => e.id === activeEventId) ||
+    managedEvents[0];
+
+  // Scoped food stalls belonging strictly to this event (deduplicated by ID)
+  const eventVendors = useMemo(() => {
+    const seenIds = new Set<string>();
+    return vendors.filter(v => {
+      if (seenIds.has(v.id)) return false;
+      seenIds.add(v.id);
+      if (v.eventId) return v.eventId === currentEvent?.id;
+      return currentEvent?.id === "evt-001";
+    });
+  }, [vendors, currentEvent?.id]);
+
+  // Orders strictly belonging to this event's stalls
+  const eventVendorIds = new Set(eventVendors.map(v => v.id));
+  const eventOrders = orders.filter(o => eventVendorIds.has(o.vendorId));
 
   // Bank & Swish Details State for Event Admin
   const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
@@ -193,7 +213,7 @@ export const AdminPage: React.FC = () => {
   const [selectedInvoiceToPreview, setSelectedInvoiceToPreview] = useState<VendorInvoice | null>(null);
   const [showSendInvoiceModal, setShowSendInvoiceModal] = useState(false);
   const [invoiceType, setInvoiceType] = useState<"receipt" | "invoice">("receipt");
-  const [invoiceVendorId, setInvoiceVendorId] = useState<string>(vendors[0]?.id || "");
+  const [invoiceVendorId, setInvoiceVendorId] = useState<string>(eventVendors[0]?.id || "");
   const [invoiceTitle, setInvoiceTitle] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceGross, setInvoiceGross] = useState<number>(0);
@@ -205,16 +225,27 @@ export const AdminPage: React.FC = () => {
   const [invoiceFilterVendor, setInvoiceFilterVendor] = useState<string>("all");
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState<string>("");
 
+  // Keep invoiceVendorId in sync with available event vendors
+  useEffect(() => {
+    if (eventVendors.length > 0 && (!invoiceVendorId || !eventVendors.some(v => v.id === invoiceVendorId))) {
+      setInvoiceVendorId(eventVendors[0].id);
+    }
+  }, [eventVendors, invoiceVendorId]);
+
   // Aggregate all invoices across all vendors for this event
-  const allEventInvoices = vendors.flatMap(v => (v.invoices || []).map(inv => ({ ...inv, vendor: v })));
+  const allEventInvoices = eventVendors.flatMap(v => (v.invoices || []).map(inv => ({ ...inv, vendor: v })));
 
   const openSendInvoiceModal = (presetVendorId?: string, presetType?: "receipt" | "invoice") => {
-    const targetVendor = vendors.find(v => v.id === (presetVendorId || invoiceVendorId)) || vendors[0];
+    const targetVendor = eventVendors.find(v => v.id === (presetVendorId || invoiceVendorId)) || eventVendors[0];
+    if (!targetVendor) {
+      setNotification("Please onboard at least one vendor stall first.");
+      return;
+    }
     const targetType = presetType || "receipt";
     setInvoiceVendorId(targetVendor.id);
     setInvoiceType(targetType);
 
-    const vendorOrders = orders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
+    const vendorOrders = eventOrders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
     const vendorGross = vendorOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0) || 14850;
 
     if (targetType === "receipt") {
@@ -246,8 +277,9 @@ export const AdminPage: React.FC = () => {
   const handleVendorOrTypeChange = (newVendorId: string, newType: "receipt" | "invoice") => {
     setInvoiceVendorId(newVendorId);
     setInvoiceType(newType);
-    const targetVendor = vendors.find(v => v.id === newVendorId) || vendors[0];
-    const vendorOrders = orders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
+    const targetVendor = eventVendors.find(v => v.id === newVendorId) || eventVendors[0];
+    if (!targetVendor) return;
+    const vendorOrders = eventOrders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
     const vendorGross = vendorOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0) || 14850;
 
     if (newType === "receipt") {
@@ -276,10 +308,10 @@ export const AdminPage: React.FC = () => {
 
   const handleSendInvoiceToVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetVendor = vendors.find(v => v.id === invoiceVendorId);
+    const targetVendor = eventVendors.find(v => v.id === invoiceVendorId);
     if (!targetVendor) return;
 
-    const vendorOrders = orders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
+    const vendorOrders = eventOrders.filter(o => o.vendorId === targetVendor.id && o.status === "Completed");
 
     const newInvoice: VendorInvoice = {
       id: `inv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -334,7 +366,7 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleUpdateInvoiceStatus = async (vendorId: string, invoiceId: string, newStatus: "Sent" | "Paid" | "Settled") => {
-    const targetVendor = vendors.find(v => v.id === vendorId);
+    const targetVendor = eventVendors.find(v => v.id === vendorId) || vendors.find(v => v.id === vendorId);
     if (!targetVendor || !targetVendor.invoices) return;
     const updatedInvoices = targetVendor.invoices.map(inv => inv.id === invoiceId ? { ...inv, status: newStatus } : inv);
     await handleUpdateVendorProfile(vendorId, { invoices: updatedInvoices });
@@ -347,6 +379,7 @@ export const AdminPage: React.FC = () => {
   const [newVendorLogo, setNewVendorLogo] = useState("🍛");
   const [newVendorStall, setNewVendorStall] = useState("Stall #05");
   const [newVendorSwish, setNewVendorSwish] = useState("123 999 88 77");
+  const [isSubmittingVendor, setIsSubmittingVendor] = useState(false);
 
   if (!loggedInAdminId) {
     return (
@@ -359,38 +392,48 @@ export const AdminPage: React.FC = () => {
     );
   }
 
-  const handleCreateVendor = (e: React.FormEvent) => {
+  const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVendorName || !newVendorCuisine) return;
+    if (!newVendorName.trim() || !newVendorCuisine.trim() || isSubmittingVendor) return;
 
-    const newV: Vendor = {
-      id: `v_${Date.now()}`,
-      isApproved: true,
-      name: newVendorName,
-      cuisine: newVendorCuisine,
-      logo: newVendorLogo || "🍛",
-      rating: 5.0,
-      location: "Kungsträdgården Square",
-      stallNumber: newVendorStall || "Stall #05",
-      pin: "9999",
-      email: `${newVendorName.toLowerCase().replace(/\s+/g, '')}@venueeat.se`,
-      swishNumber: newVendorSwish || "123 999 88 77",
-      menu: [
-        {
-          id: `m_${Date.now()}_1`,
-          name: "Signature Street Dish",
-          description: "Freshly cooked festival street food classic.",
-          price: 120,
-          category: "Food",
-          stock: true
-        }
-      ]
-    };
+    setIsSubmittingVendor(true);
+    try {
+      const newV: Vendor = {
+        id: `v_${Date.now()}`,
+        eventId: currentEvent.id,
+        isApproved: true,
+        name: newVendorName.trim(),
+        cuisine: newVendorCuisine.trim(),
+        logo: newVendorLogo || "🍛",
+        rating: 5.0,
+        location: currentEvent.location || "Festival Grounds",
+        stallNumber: newVendorStall || `Stall #${String(eventVendors.length + 1).padStart(2, '0')}`,
+        pin: "9999",
+        email: `${newVendorName.trim().toLowerCase().replace(/\s+/g, '')}@venueeat.se`,
+        swishNumber: newVendorSwish || "123 999 88 77",
+        menu: [
+          {
+            id: `m_${Date.now()}_1`,
+            name: "Signature Street Dish",
+            description: "Freshly cooked festival street food classic.",
+            price: 120,
+            category: "Food",
+            stock: true
+          }
+        ]
+      };
 
-    handleAddNewVendor(newV);
-    setShowAddVendorModal(false);
-    setNewVendorName("");
-    setNewVendorCuisine("");
+      await handleAddNewVendor(newV);
+      await handleUpdateEvent({
+        ...currentEvent,
+        activeVendorsCount: eventVendors.length + 1
+      });
+      setShowAddVendorModal(false);
+      setNewVendorName("");
+      setNewVendorCuisine("");
+    } finally {
+      setIsSubmittingVendor(false);
+    }
   };
 
   return (
@@ -457,21 +500,6 @@ export const AdminPage: React.FC = () => {
             <span>Edit Event</span>
           </button>
 
-          {/* Event Switcher Dropdown if multiple events exist */}
-          {managedEvents.length > 1 && (
-            <select
-              value={currentEvent.id}
-              onChange={(e) => setActiveEventId(e.target.value)}
-              className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs rounded-2xl px-3 py-2.5 outline-none font-medium cursor-pointer"
-            >
-              {managedEvents.map(evt => (
-                <option key={evt.id} value={evt.id}>
-                  Switch: {evt.name}
-                </option>
-              ))}
-            </select>
-          )}
-
           <button
             onClick={() => setLoggedInAdminId(null)}
             className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-bold text-xs px-4 py-2.5 rounded-2xl border border-zinc-800 transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
@@ -491,7 +519,7 @@ export const AdminPage: React.FC = () => {
           }`}
         >
           <Store className="w-4 h-4" />
-          <span>Food Stalls ({vendors.length})</span>
+          <span>Food Stalls ({eventVendors.length})</span>
         </button>
 
         <button
@@ -694,8 +722,8 @@ export const AdminPage: React.FC = () => {
                 onChange={(e) => setInvoiceFilterVendor(e.target.value)}
                 className="bg-white border border-zinc-200 rounded-xl px-3 py-1.5 text-xs text-zinc-700 outline-none cursor-pointer"
               >
-                <option value="all">All Vendors ({vendors.length})</option>
-                {vendors.map(v => (
+                <option value="all">All Vendors ({eventVendors.length})</option>
+                {eventVendors.map(v => (
                   <option key={v.id} value={v.id}>
                     {v.name} ({v.stallNumber || "Stall"})
                   </option>
@@ -895,9 +923,9 @@ export const AdminPage: React.FC = () => {
           })()}
         </div>
       ) : activeTab === "analytics" ? (
-        <AdminSalesCharts orders={orders} vendors={vendors} />
+        <AdminSalesCharts orders={eventOrders} vendors={eventVendors} />
       ) : activeTab === "map" ? (
-        <AdminMapManager />
+        <AdminMapManager vendors={eventVendors} />
       ) : activeTab === "activity" ? (
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-4 shadow-xs">
           <h3 className="font-display font-black text-xl text-zinc-900">Real-time Audit & Swish Transaction Log</h3>
@@ -934,11 +962,32 @@ export const AdminPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {vendors.map(v => {
-              const isApproved = v.isApproved === true;
-              const storeOrders = orders.filter(
-                (o) => o.vendorId === v.id || o.vendorName === v.name
-              );
+            {eventVendors.length === 0 ? (
+              <div className="col-span-full py-16 px-6 text-center bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-3xl space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-3xl">
+                  🏪
+                </div>
+                <div className="space-y-1 max-w-md mx-auto">
+                  <h4 className="font-display font-black text-lg text-zinc-900">No Food Stalls Onboarded Yet</h4>
+                  <p className="text-xs text-zinc-500">
+                    This event is currently empty. Click below to onboard the first food stall vendor for {currentEvent.name}.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddVendorModal(true)}
+                  className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-display font-black text-xs px-5 py-3 rounded-2xl transition-all shadow-md shadow-orange-500/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Onboard First Vendor</span>
+                </button>
+              </div>
+            ) : (
+              eventVendors.map(v => {
+                const isApproved = v.isApproved === true;
+                const storeOrders = eventOrders.filter(
+                  (o) => o.vendorId === v.id || o.vendorName === v.name
+                );
               const storeCompleted = storeOrders.filter(o => o.status === "Completed");
               const storeRevenue = storeCompleted.reduce((acc, o) => acc + (o.totalAmount || 0), 0);
 
@@ -1018,7 +1067,7 @@ export const AdminPage: React.FC = () => {
                             e.stopPropagation();
                             handleSuspendVendor(v.id);
                           }}
-                          className="w-full bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
+                          className="flex-1 bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
                         >
                           Suspend Stall
                         </button>
@@ -1029,16 +1078,30 @@ export const AdminPage: React.FC = () => {
                             e.stopPropagation();
                             handleApproveVendor(v.id);
                           }}
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
                         >
                           Approve Stall
                         </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Are you sure you want to delete stall "${v.name}"?`)) {
+                            handleDeleteVendor(v.id);
+                          }
+                        }}
+                        className="px-2.5 bg-zinc-100 hover:bg-rose-50 text-zinc-400 hover:text-rose-600 rounded-xl transition-colors cursor-pointer flex items-center justify-center border border-zinc-200 shrink-0"
+                        title="Delete Food Stall"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
           </div>
         </div>
       )}
@@ -1371,7 +1434,7 @@ export const AdminPage: React.FC = () => {
                   onChange={(e) => handleVendorOrTypeChange(e.target.value, invoiceType)}
                   className="w-full bg-zinc-50 border border-zinc-200 focus:border-orange-500 rounded-xl p-2.5 text-xs text-zinc-900 font-medium outline-none cursor-pointer"
                 >
-                  {vendors.map(v => (
+                  {eventVendors.map(v => (
                     <option key={v.id} value={v.id}>
                       {v.name} ({v.stallNumber || "Stall"}) • Swish #{v.swishNumber || "N/A"}
                     </option>
@@ -1381,7 +1444,7 @@ export const AdminPage: React.FC = () => {
 
               {/* Target Vendor Bank Details Preview */}
               {(() => {
-                const targetV = vendors.find(v => v.id === invoiceVendorId);
+                const targetV = eventVendors.find(v => v.id === invoiceVendorId);
                 const hasBank = Boolean(targetV?.bankAccountNumber || targetV?.bankGiro);
 
                 if (invoiceType === "receipt") {
@@ -1657,9 +1720,10 @@ export const AdminPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-xl cursor-pointer"
+                  disabled={isSubmittingVendor}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer"
                 >
-                  Confirm & Approve
+                  {isSubmittingVendor ? "Onboarding..." : "Confirm & Approve"}
                 </button>
               </div>
             </form>

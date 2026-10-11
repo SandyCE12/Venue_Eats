@@ -97,7 +97,7 @@ export const MARKET_COMPETITORS: Competitor[] = [
   }
 ];
 
-export const DEFAULT_VENDORS: Vendor[] = [
+const RAW_DEFAULT_VENDORS: Vendor[] = [
   {
     id: "v1",
     isApproved: true,
@@ -1105,6 +1105,11 @@ export const DEFAULT_VENDORS: Vendor[] = [
     ]
   }
 ];
+
+export const DEFAULT_VENDORS: Vendor[] = RAW_DEFAULT_VENDORS.map(v => ({
+  ...v,
+  eventId: v.eventId || "evt-001"
+}));
 
 export const DEFAULT_BUSINESS_METRICS: BusinessMetrics = {
   attendees: 25000,

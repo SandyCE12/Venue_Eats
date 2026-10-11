@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useApp } from "../context/AppContext";
 import { 
@@ -94,6 +94,17 @@ export const AttendeePage: React.FC = () => {
   } = useApp();
 
   const currentEvent = managedEvents.find(e => e.id === selectedUserEventId) || managedEvents[0];
+
+  // Scoped food stalls belonging strictly to this event (deduplicated by ID)
+  const eventVendors = useMemo(() => {
+    const seenIds = new Set<string>();
+    return vendors.filter(v => {
+      if (seenIds.has(v.id)) return false;
+      seenIds.add(v.id);
+      if (v.eventId) return v.eventId === currentEvent?.id;
+      return currentEvent?.id === "evt-001";
+    });
+  }, [vendors, currentEvent?.id]);
 
   const [stallSearchQuery, setStallSearchQuery] = useState<string>(" ");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -250,7 +261,7 @@ export const AttendeePage: React.FC = () => {
     }
   }, [customizingItem, showCartDrawer, showVendorJoinModal]);
 
-  const activeVendor = vendors.find(v => v.id === activeVendorId) || vendors[0];
+  const activeVendor = eventVendors.find(v => v.id === activeVendorId) || eventVendors[0] || vendors[0];
 
   // Helper to add item directly without customization
   const handleAddItemDirect = (item: MenuItem) => {
@@ -789,7 +800,7 @@ export const AttendeePage: React.FC = () => {
       ) : activeTab === "map" ? (
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 shadow-xs text-left">
           <EventMap
-            vendors={vendors}
+            vendors={eventVendors}
             activeVendorId={activeVendorId}
             onSelectVendor={(id) => {
               setActiveVendorId(id);
@@ -822,7 +833,7 @@ export const AttendeePage: React.FC = () => {
                   {currentEvent ? `${currentEvent.name} · Food Stalls & Menus` : "Festival Food Stalls & Menus"}
                 </h3>
                 <span className="bg-orange-100 text-orange-800 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
-                  {vendors.filter(v => v.isApproved === true).length} Stalls Open
+                  {eventVendors.filter(v => v.isApproved === true).length} Stalls Open
                 </span>
               </div>
               <p className="text-xs text-zinc-500 font-medium">
@@ -856,17 +867,33 @@ export const AttendeePage: React.FC = () => {
 
           {/* FOOD STALLS GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {vendors
-              .filter(v => v.isApproved === true)
-              .filter(v => {
-                if (!stallSearchQuery.trim()) return true;
-                const q = stallSearchQuery.toLowerCase();
-                const matchName = v.name.toLowerCase().includes(q);
-                const matchCuisine = v.cuisine.toLowerCase().includes(q);
-                const matchMenu = v.menu.some(m => m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q));
-                return matchName || matchCuisine || matchMenu;
-              })
-              .map(v => {
+            {(() => {
+              const displayedVendors = eventVendors
+                .filter(v => v.isApproved === true)
+                .filter(v => {
+                  if (!stallSearchQuery.trim()) return true;
+                  const q = stallSearchQuery.toLowerCase();
+                  const matchName = v.name.toLowerCase().includes(q);
+                  const matchCuisine = v.cuisine.toLowerCase().includes(q);
+                  const matchMenu = v.menu.some(m => m.name.toLowerCase().includes(q) || m.description.toLowerCase().includes(q));
+                  return matchName || matchCuisine || matchMenu;
+                });
+
+              if (displayedVendors.length === 0) {
+                return (
+                  <div className="col-span-full py-16 px-6 text-center bg-white border border-zinc-200 rounded-3xl space-y-3">
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-3xl">
+                      🍽️
+                    </div>
+                    <h4 className="font-display font-black text-lg text-zinc-900">No Food Stalls Available Yet</h4>
+                    <p className="text-xs text-zinc-500 max-w-md mx-auto">
+                      Vendors have not yet been onboarded for this festival. Please check back shortly or register your stall!
+                    </p>
+                  </div>
+                );
+              }
+
+              return displayedVendors.map(v => {
                 const waitInfo = estimateVendorWaitTime(v.id);
                 const isSelected = v.id === activeVendorId;
                 const sampleItems = v.menu.slice(0, 3);
@@ -948,7 +975,8 @@ export const AttendeePage: React.FC = () => {
                     </button>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
       ) : (
@@ -1296,6 +1324,7 @@ export const AttendeePage: React.FC = () => {
       <VendorJoinModal 
         isOpen={showVendorJoinModal} 
         onClose={() => setShowVendorJoinModal(false)} 
+        eventId={currentEvent?.id}
       />
 
       {/* Floating Sticky Mobile Cart Bar */}

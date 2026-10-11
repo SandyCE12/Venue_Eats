@@ -87,6 +87,7 @@ interface AppContextType {
   handleApproveVendor: (vendorId: string) => Promise<void>;
   handleSuspendVendor: (vendorId: string) => Promise<void>;
   handleAddNewVendor: (newVendor: Vendor) => Promise<void>;
+  handleDeleteVendor: (vendorId: string) => Promise<void>;
   handleUpdateEventStatus: (eventId: string, newStatus: EventStatus) => Promise<void>;
   handleAddNewEvent: (newEvent: ManagedEvent) => Promise<void>;
   handleUpdateEvent: (updatedEvent: ManagedEvent) => Promise<void>;
@@ -272,7 +273,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const loadedVendors: Vendor[] = [];
           const loadedVendorIds = new Set<string>();
           snapshot.forEach((docSnap) => {
-            const vData = { id: docSnap.id, ...docSnap.data() } as Vendor;
+            const rawData = docSnap.data();
+            const vData = { 
+              id: docSnap.id, 
+              eventId: rawData.eventId || (docSnap.id.startsWith("v_") ? undefined : "evt-001"),
+              ...rawData 
+            } as Vendor;
             loadedVendors.push(vData);
             loadedVendorIds.add(docSnap.id);
           });
@@ -571,9 +577,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err) {
       console.warn("Firestore add vendor error:", err);
     }
-    setVendors(prev => [newVendor, ...prev]);
+    setVendors(prev => {
+      if (prev.some(v => v.id === newVendor.id)) {
+        return prev;
+      }
+      return [newVendor, ...prev];
+    });
     setNotification(`Registered new food stall "${newVendor.name}"!`);
     logActivity(`New food stall registered: "${newVendor.name}" (${newVendor.cuisine}).`, "vendor", "success");
+  };
+
+  const handleDeleteVendor = async (vendorId: string) => {
+    try {
+      await deleteDoc(doc(db, "vendors", vendorId));
+    } catch (err) {
+      console.warn("Firestore delete vendor error:", err);
+    }
+    setVendors(prev => prev.filter(v => v.id !== vendorId));
+    setNotification("Food stall removed.");
+    logActivity(`Food stall deleted (ID: ${vendorId}).`, "admin", "warning");
   };
 
   const handleUpdateEventStatus = async (eventId: string, newStatus: EventStatus) => {
@@ -808,6 +830,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleApproveVendor,
         handleSuspendVendor,
         handleAddNewVendor,
+        handleDeleteVendor,
         handleUpdateEventStatus,
         handleAddNewEvent,
         handleUpdateEvent,

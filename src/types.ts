@@ -17,6 +17,7 @@ export interface MenuItem {
 
 export interface Vendor {
   id: string;
+  eventId?: string;
   name: string;
   cuisine: string;
   logo: string;

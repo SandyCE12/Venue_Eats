@@ -20,9 +20,10 @@ import { useApp } from "../context/AppContext";
 interface VendorJoinModalProps {
   isOpen: boolean;
   onClose: () => void;
+  eventId?: string;
 }
 
-export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClose }) => {
+export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClose, eventId }) => {
   const { handleAddNewVendor, setNotification } = useApp();
 
   const [stallName, setStallName] = useState("");
@@ -65,6 +66,7 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
 
     const newVendor: Vendor = {
       id: newVendorId,
+      eventId: eventId || "evt-001",
       name: stallName.trim(),
       cuisine: cuisine.trim(),
       logo: logoEmoji || "🍛",
