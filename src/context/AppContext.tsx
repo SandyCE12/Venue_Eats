@@ -72,7 +72,7 @@ interface AppContextType {
   setNotification: (msg: string | null) => void;
   handleUpdateEventMapUrl: (url: string | undefined) => void;
   
-  handleSignIn: () => Promise<void>;
+  handleSignIn: () => Promise<User | null>;
   handleSignOut: () => Promise<void>;
   logActivity: (message: string, category: "order" | "vendor" | "system" | "admin", type?: "info" | "success" | "warning" | "alert") => void;
   confirmSwishPayment: (
@@ -424,12 +424,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const clearCart = () => setCustomerCart({});
 
   // Auth helper
-  const handleSignIn = async () => {
+  const handleSignIn = async (): Promise<User | null> => {
     try {
-      await signInWithPopup(auth, googleProvider);
-      setNotification("Successfully signed in!");
+      const result = await signInWithPopup(auth, googleProvider);
+      setUser(result.user);
+      setNotification(`Signed in as ${result.user.displayName || result.user.email}!`);
+      return result.user;
     } catch (err: any) {
       console.warn("Sign-in error:", err);
+      throw err;
     }
   };
 
