@@ -5,16 +5,17 @@ import {
   X, 
   CheckCircle2, 
   Sparkles, 
-  ArrowRight, 
   ChefHat, 
-  UtensilsCrossed, 
   Phone, 
   Mail, 
-  Building2,
   ShieldCheck,
-  CreditCard
+  CreditCard,
+  Calendar,
+  MapPin,
+  Clock,
+  ArrowRight
 } from "lucide-react";
-import { Vendor } from "../types";
+import { VendorApplication } from "../types";
 import { useApp } from "../context/AppContext";
 
 interface VendorJoinModalProps {
@@ -24,8 +25,9 @@ interface VendorJoinModalProps {
 }
 
 export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClose, eventId }) => {
-  const { handleAddNewVendor, setNotification } = useApp();
+  const { managedEvents, handleSubmitVendorApplication, setNotification } = useApp();
 
+  const [selectedEventId, setSelectedEventId] = useState<string>(eventId || managedEvents[0]?.id || "evt-001");
   const [stallName, setStallName] = useState("");
   const [cuisine, setCuisine] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -34,10 +36,18 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
   const [swishNumber, setSwishNumber] = useState("123 456 7890");
   const [logoEmoji, setLogoEmoji] = useState("🌮");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("Kungsträdgården Main Lawn - Zone B");
 
-  const [submittedVendor, setSubmittedVendor] = useState<Vendor | null>(null);
+  const [submittedApplication, setSubmittedApplication] = useState<VendorApplication | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync selectedEventId if eventId prop changes
+  useEffect(() => {
+    if (eventId) {
+      setSelectedEventId(eventId);
+    } else if (managedEvents.length > 0 && !selectedEventId) {
+      setSelectedEventId(managedEvents[0].id);
+    }
+  }, [eventId, managedEvents]);
 
   // Lock body scroll when modal is open and restore on close
   useEffect(() => {
@@ -47,81 +57,62 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
       return () => {
         document.body.style.overflow = prevOverflow;
       };
+    } else {
+      // Reset submission screen when modal is closed
+      setSubmittedApplication(null);
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const currentSelectedEvent = managedEvents.find(e => e.id === selectedEventId) || managedEvents[0];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stallName.trim() || !cuisine.trim() || !ownerName.trim()) {
-      alert("Please fill in all required fields (Stall name, cuisine, and contact name).");
+    if (!stallName.trim() || !cuisine.trim() || !email.trim() || !ownerName.trim()) {
+      alert("Please fill in all required fields (Stall name, cuisine, email, and contact name).");
       return;
     }
 
     setIsSubmitting(true);
 
-    const newVendorId = `v_${Date.now()}`;
-    const generatedPin = Math.floor(1000 + Math.random() * 9000).toString();
-
-    const newVendor: Vendor = {
-      id: newVendorId,
-      eventId: eventId || "evt-001",
-      name: stallName.trim(),
+    const appData = {
+      eventId: currentSelectedEvent?.id || "evt-001",
+      eventName: currentSelectedEvent?.name || "Festival Event",
+      stallName: stallName.trim(),
       cuisine: cuisine.trim(),
-      logo: logoEmoji || "🍛",
-      rating: 5.0,
-      location: location,
-      pin: generatedPin,
-      email: email.trim() || "vendor@venueeat.se",
-      phone: phone.trim() || "+46 70 123 4567",
+      email: email.trim().toLowerCase(),
       swishNumber: swishNumber.trim() || "123 456 7890",
-      bankName: "SEB (Skandinaviska Enskilda Banken)",
-      bankClearingNumber: "5051",
-      bankAccountNumber: "",
-      bankAccountHolder: stallName.trim(),
-      isApproved: true,
-      menu: [
-        {
-          id: `${newVendorId}_m1`,
-          name: `Signature ${cuisine.trim()} Special`,
-          description: `Freshly prepared chef special dish served hot with signature herbs and spices.`,
-          price: 125,
-          category: "Food",
-          stock: true
-        },
-        {
-          id: `${newVendorId}_m2`,
-          name: `Artisanal Side & Dip`,
-          description: `Crispy side portion crafted with fresh local ingredients.`,
-          price: 55,
-          category: "Snack",
-          stock: true
-        },
-        {
-          id: `${newVendorId}_m3`,
-          name: `Refreshing Event Drink`,
-          description: `Cold infused beverage in 500ml eco-cup.`,
-          price: 35,
-          category: "Drink",
-          stock: true
-        }
-      ]
+      phone: phone.trim() || undefined,
+      contactName: ownerName.trim() || undefined,
+      logo: logoEmoji || "🍛",
+      description: description.trim() || undefined
     };
 
     try {
-      await handleAddNewVendor(newVendor);
-      setSubmittedVendor(newVendor);
-    } catch (err) {
-      console.error("Error creating vendor:", err);
-      setNotification("Created stall in local session.");
-      setSubmittedVendor(newVendor);
+      await handleSubmitVendorApplication(appData);
+      setSubmittedApplication({
+        ...appData,
+        id: `app_${Date.now()}`,
+        status: "pending",
+        submittedAt: Date.now()
+      });
+      // Clear form inputs
+      setStallName("");
+      setCuisine("");
+      setOwnerName("");
+      setEmail("");
+      setPhone("");
+      setDescription("");
+    } catch (err: any) {
+      console.error("Error submitting vendor application:", err);
+      setNotification("Failed to submit application. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const emojiOptions = ["🌮", "🍕", "🍔", "🍣", "🍜", "🍦", "🥗", "🥙", "🍩", "🍹", "☕", "🥩"];
+  const emojiOptions = ["🌮", "🍕", "🍔", "🍣", "🍜", "🍦", "🥗", "🥙", "🍩", "🍹", "☕", "🥩", "🍛", "🥨", "🥞", "🥘"];
 
   return createPortal(
     <div 
@@ -148,95 +139,134 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
 
           <div className="flex items-center gap-2.5 text-orange-400 text-xs font-mono font-bold uppercase tracking-wider mb-1">
             <Sparkles className="w-4 h-4 animate-pulse" />
-            <span>Partner Platform</span>
+            <span>Festival Vendor Application</span>
           </div>
 
           <h2 className="text-xl sm:text-2xl font-display font-black text-white tracking-tight flex items-center gap-2">
-            Join VenueEat
+            Apply to Become a Vendor
           </h2>
           <p className="text-zinc-400 text-xs mt-1 leading-relaxed">
-            Register your food stall or pop-up kitchen in under 2 minutes. Accept instant Swish payments with automated queue management.
+            Select your festival, submit your food stall profile, and the event organizers will review your application to issue your kitchen terminal login credentials.
           </p>
         </div>
 
         {/* Content Body */}
-        {submittedVendor ? (
+        {submittedApplication ? (
           /* SUCCESS STATE */
-          <div className="p-6 text-center space-y-5 flex-1 overflow-y-auto">
+          <div className="p-6 text-center space-y-5 flex-1 overflow-y-auto animate-fadeIn">
             <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-3xl shadow-sm border border-emerald-200">
               <CheckCircle2 className="w-10 h-10" />
             </div>
 
             <div>
               <span className="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold font-mono border border-emerald-200 mb-2">
-                Stall Registered & Active!
+                Application Received!
               </span>
               <h3 className="text-xl font-display font-black text-zinc-900">
-                Welcome, {submittedVendor.name}! {submittedVendor.logo}
+                Application Submitted! {submittedApplication.logo}
               </h3>
-              <p className="text-zinc-600 text-xs mt-1 max-w-sm mx-auto">
-                Your vendor kitchen is live on the VenueEat festival network. You can access your Kitchen Live Dashboard now.
+              <p className="text-zinc-600 text-xs mt-1 max-w-sm mx-auto leading-relaxed">
+                Thank you! Your application for <strong>{submittedApplication.stallName}</strong> has been routed directly to the event administration of <strong>{submittedApplication.eventName}</strong>.
               </p>
             </div>
 
-            {/* Vendor Credentials Card */}
-            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-left space-y-2">
-              <div className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                Kitchen Login Details
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-600">Vendor ID:</span>
-                <span className="font-mono font-bold text-zinc-900 bg-white px-2 py-1 rounded-lg border border-zinc-200">
-                  {submittedVendor.id}
+            {/* Application Details Summary */}
+            <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 text-left space-y-2.5 text-xs">
+              <div className="text-[10px] font-mono font-bold text-zinc-500 uppercase tracking-wider border-b border-zinc-200 pb-1.5 flex items-center justify-between">
+                <span>Application Summary</span>
+                <span className="text-amber-600 font-bold flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Under Review
                 </span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-600">Access PIN Code:</span>
-                <span className="font-mono font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200">
-                  {submittedVendor.pin}
-                </span>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-600">Festival Event:</span>
+                <span className="font-bold text-zinc-900">{submittedApplication.eventName}</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-600">Swish Merchant Payout:</span>
-                <span className="font-mono font-bold text-zinc-900">
-                  {submittedVendor.swishNumber}
-                </span>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-600">Stall / Cuisine:</span>
+                <span className="font-bold text-zinc-900">{submittedApplication.stallName} ({submittedApplication.cuisine})</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-600">Credentials Target Email:</span>
+                <span className="font-mono font-bold text-sky-700 break-all">{submittedApplication.email}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-zinc-600">Swish Payout Number:</span>
+                <span className="font-mono font-bold text-zinc-900">{submittedApplication.swishNumber}</span>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <a
-                href="/vendor"
-                className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white font-black text-xs py-3 px-4 rounded-xl transition-all text-center flex items-center justify-center gap-2 shadow-sm"
-              >
-                <span>Go to Vendor Kitchen</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
+            {/* Next Steps Card */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-left space-y-1 text-xs text-amber-900">
+              <p className="font-bold flex items-center gap-1.5 text-amber-800">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                What happens next?
+              </p>
+              <p className="text-[11px] text-zinc-600 leading-relaxed">
+                The event admin will review your food stall details in their administration portal. Once approved, you will receive an invitation email at <strong>{submittedApplication.email}</strong> containing your secure password to log into the <strong>Kitchen Terminal (/vendor)</strong> and configure your dishes and Swedish bank payout details.
+              </p>
+            </div>
+
+            <div className="pt-2">
               <button
                 onClick={onClose}
-                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs py-3 px-4 rounded-xl transition-all cursor-pointer"
+                className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-display font-black text-xs py-3.5 px-4 rounded-xl transition-all cursor-pointer shadow-md"
               >
-                Close & Browse Menu
+                Done &amp; Return to Festival
               </button>
             </div>
           </div>
         ) : (
           /* FORM STATE */
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 flex-1 overflow-y-auto text-left">
             
-            {/* Stall Name & Icon */}
+            {/* Step 1: Festival Selection */}
+            <div className="bg-orange-50/60 border border-orange-200/80 rounded-2xl p-3.5 space-y-2">
+              <label className="text-xs font-bold text-orange-950 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-orange-600" />
+                  Select Festival Event *
+                </span>
+                <span className="text-[10px] text-orange-700 font-normal">Choose target venue</span>
+              </label>
+
+              <select
+                value={selectedEventId}
+                onChange={(e) => setSelectedEventId(e.target.value)}
+                className="w-full bg-white border border-orange-300 focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs font-bold text-zinc-900 outline-none cursor-pointer"
+              >
+                {managedEvents.map(evt => (
+                  <option key={evt.id} value={evt.id}>
+                    {evt.name} ({evt.location})
+                  </option>
+                ))}
+              </select>
+
+              {currentSelectedEvent && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono text-zinc-600 pt-0.5">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-orange-600" />
+                    {currentSelectedEvent.location}
+                  </span>
+                  <span>•</span>
+                  <span>Dates: {currentSelectedEvent.startDate} {currentSelectedEvent.endDate ? `to ${currentSelectedEvent.endDate}` : ""}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Step 2: Food Stall Name & Emoji Icon */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-700 flex items-center justify-between">
                 <span>Food Stall Name *</span>
-                <span className="text-[10px] text-zinc-400 font-normal">Displayed on event menu</span>
+                <span className="text-[10px] text-zinc-400 font-normal">Brand / Booth name</span>
               </label>
               <div className="flex gap-2">
-                {/* Emoji Selector */}
                 <div className="relative">
                   <select
                     value={logoEmoji}
                     onChange={(e) => setLogoEmoji(e.target.value)}
                     className="h-11 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-lg appearance-none cursor-pointer text-center font-emoji focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    title="Select brand icon"
                   >
                     {emojiOptions.map(emoji => (
                       <option key={emoji} value={emoji}>{emoji}</option>
@@ -254,7 +284,7 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
               </div>
             </div>
 
-            {/* Cuisine Type */}
+            {/* Cuisine Specialty */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-700">
                 Cuisine / Specialty *
@@ -264,7 +294,7 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Authentic Mexican Street Food, Bao Buns, Gelato"
+                  placeholder="e.g. Mexican Street Eats, Bao Buns, Artisanal Burgers"
                   value={cuisine}
                   onChange={(e) => setCuisine(e.target.value)}
                   className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
@@ -272,36 +302,41 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
               </div>
             </div>
 
-            {/* Owner / Contact Name & Email */}
+            {/* Official Email */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 flex items-center justify-between">
+                <span>Official Business Email *</span>
+                <span className="text-[10px] text-zinc-400 font-normal">Credentials delivery address</span>
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <input
+                  type="email"
+                  required
+                  placeholder="e.g. manager@tacotruck.se"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                />
+              </div>
+              <p className="text-[10px] text-zinc-500">
+                Your Kitchen Terminal login credentials will be emailed here once your application is approved.
+              </p>
+            </div>
+
+            {/* Contact Person & Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-zinc-700">Contact Person *</label>
                 <input
                   type="text"
                   required
-                  placeholder="Full Name"
+                  placeholder="Full Name / Head Chef"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
                   className="w-full h-11 px-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-700">Work Email</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
-                  <input
-                    type="email"
-                    placeholder="vendor@stall.se"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Phone & Swish Number */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-zinc-700">Phone Number</label>
                 <div className="relative">
@@ -315,42 +350,47 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
                   />
                 </div>
               </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-700">Swish Merchant Number</label>
-                <div className="relative">
-                  <CreditCard className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
-                  <input
-                    type="text"
-                    placeholder="123 456 7890"
-                    value={swishNumber}
-                    onChange={(e) => setSwishNumber(e.target.value)}
-                    className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all font-mono"
-                  />
-                </div>
-              </div>
             </div>
 
-            {/* Location Zone */}
+            {/* Swish Merchant Number */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700">Assigned Venue Zone</label>
+              <label className="text-xs font-bold text-zinc-700 flex items-center justify-between">
+                <span>Swish Merchant Number (Swishnummer)</span>
+                <span className="text-[10px] text-zinc-400 font-normal">For attendee payments</span>
+              </label>
               <div className="relative">
-                <Building2 className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <CreditCard className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
                 <input
                   type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-800 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all"
+                  placeholder="e.g. 123 456 7890"
+                  value={swishNumber}
+                  onChange={(e) => setSwishNumber(e.target.value)}
+                  className="w-full h-11 pl-10 pr-3.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-bold text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all font-mono"
                 />
               </div>
             </div>
 
-            {/* Platform Features Pill */}
+            {/* Stall Description / Notes */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 flex items-center justify-between">
+                <span>Stall Concept &amp; Special Dishes</span>
+                <span className="text-[10px] text-zinc-400 font-normal">Optional</span>
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Tell the event organizers about your specialty dishes, booth setup, electrical requirements, etc."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:bg-white focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all resize-none"
+              />
+            </div>
+
+            {/* Platform Notice */}
             <div className="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-3 flex items-center gap-3 text-xs text-orange-900">
               <ShieldCheck className="w-5 h-5 text-orange-600 shrink-0" />
               <div className="leading-tight text-[11px]">
-                <span className="font-bold block">Instant Onboarding Benefits</span>
-                <span>Direct Swish Handel payouts, kitchen order display, and table QR code generation.</span>
+                <span className="font-bold block">Organized Review Workflow</span>
+                <span>Applications are reviewed by the {currentSelectedEvent?.name || "festival"} administrator. No live stall is published until approved.</span>
               </div>
             </div>
 
@@ -369,11 +409,11 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
                 className="flex-1 bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-3 px-4 rounded-xl transition-all cursor-pointer shadow-md shadow-orange-500/20 flex items-center justify-center gap-2 border-b-2 border-orange-600"
               >
                 {isSubmitting ? (
-                  <span>Registering Stall...</span>
+                  <span>Submitting Application...</span>
                 ) : (
                   <>
                     <Store className="w-4 h-4" />
-                    <span>Register My Food Stall</span>
+                    <span>Submit Vendor Application</span>
                   </>
                 )}
               </button>

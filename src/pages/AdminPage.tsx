@@ -52,7 +52,7 @@ import EventMap from "../components/EventMap";
 import AdminMapManager from "../components/AdminMapManager";
 import { AdminStoreDetailModal } from "../components/AdminStoreDetailModal";
 import { VendorInvoiceModal } from "../components/VendorInvoiceModal";
-import { Vendor, ManagedEvent, VendorInvoice } from "../types";
+import { Vendor, ManagedEvent, VendorInvoice, VendorApplication } from "../types";
 
 const SWEDISH_BANKS = [
   "SEB (Skandinaviska Enskilda Banken)",
@@ -84,7 +84,9 @@ export const AdminPage: React.FC = () => {
     handleUpdateEvent,
     setNotification,
     handleUpdateVendorProfile,
-    logActivity
+    logActivity,
+    vendorApplications,
+    handleUpdateVendorApplicationStatus
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<"vendors" | "analytics" | "map" | "invoices" | "activity">("vendors");
@@ -397,6 +399,27 @@ export const AdminPage: React.FC = () => {
   const [vendorEmailDispatchResult, setVendorEmailDispatchResult] = useState<{ success: boolean; message: string; error?: string } | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState(false);
 
+  // Incoming Applications for this Event
+  const pendingEventApplications = useMemo(() => {
+    return (vendorApplications || []).filter(
+      a => a.eventId === currentEvent?.id && a.status === "pending"
+    );
+  }, [vendorApplications, currentEvent?.id]);
+
+  const [reviewingApplicationId, setReviewingApplicationId] = useState<string | null>(null);
+
+  const handleReviewApplication = (app: VendorApplication) => {
+    setReviewingApplicationId(app.id);
+    setNewVendorName(app.stallName);
+    setNewVendorCuisine(app.cuisine);
+    setNewVendorEmail(app.email);
+    setNewVendorSwish(app.swishNumber || "123 999 88 77");
+    setNewVendorLogo(app.logo || "🍛");
+    setNewVendorStall(`Stall #${String(eventVendors.length + 1).padStart(2, '0')}`);
+    setNewVendorPassword(`Kitchen#${Math.floor(1000 + Math.random() * 9000)}`);
+    setShowAddVendorModal(true);
+  };
+
   if (!loggedInAdminId) {
     return (
       <RealAuthGate
@@ -448,6 +471,13 @@ export const AdminPage: React.FC = () => {
         ...currentEvent,
         activeVendorsCount: eventVendors.length + 1
       });
+
+      // Mark the vendor application as approved if this was reviewing an application
+      if (reviewingApplicationId) {
+        await handleUpdateVendorApplicationStatus(reviewingApplicationId, "approved");
+        setReviewingApplicationId(null);
+      }
+
       setShowAddVendorModal(false);
       setNewVendorName("");
       setNewVendorCuisine("");
@@ -590,6 +620,11 @@ export const AdminPage: React.FC = () => {
         >
           <Store className="w-4 h-4" />
           <span>Food Stalls ({eventVendors.length})</span>
+          {pendingEventApplications.length > 0 && (
+            <span className="bg-amber-400 text-zinc-950 font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs animate-pulse" title={`${pendingEventApplications.length} pending application(s)`}>
+              {pendingEventApplications.length}
+            </span>
+          )}
         </button>
 
         <button
@@ -1017,13 +1052,116 @@ export const AdminPage: React.FC = () => {
       ) : (
         /* VENDORS MANAGEMENT TAB */
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 space-y-6 shadow-xs">
+
+          {/* INCOMING VENDOR APPLICATIONS SECTION */}
+          {pendingEventApplications.length > 0 && (
+            <div className="bg-amber-500/5 border-2 border-amber-500/30 rounded-3xl p-5 md:p-6 space-y-4 animate-fadeIn">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500 text-zinc-950 rounded-xl font-bold">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-display font-black text-base text-zinc-900">
+                        Incoming Vendor Applications
+                      </h4>
+                      <span className="bg-amber-500 text-zinc-950 font-mono text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                        {pendingEventApplications.length} Pending
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                      Submitted via the attendee portal for {currentEvent.name}. Review and onboard approved food stalls.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pendingEventApplications.map((app) => (
+                  <div 
+                    key={app.id}
+                    className="bg-white border border-amber-200/90 rounded-2xl p-4 shadow-xs space-y-3 flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-2xl p-1.5 bg-zinc-50 rounded-xl border border-zinc-200">
+                            {app.logo || "🍛"}
+                          </span>
+                          <div>
+                            <h5 className="font-display font-black text-sm text-zinc-900 leading-tight">
+                              {app.stallName}
+                            </h5>
+                            <p className="text-xs text-zinc-500 font-medium">
+                              {app.cuisine}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[9px] bg-amber-100 text-amber-800 font-mono font-bold px-2 py-0.5 rounded-full uppercase border border-amber-300 shrink-0">
+                          Pending
+                        </span>
+                      </div>
+
+                      <div className="bg-zinc-50 rounded-xl p-2.5 text-xs font-mono space-y-1 text-zinc-600">
+                        <p className="truncate">
+                          Email: <span className="font-bold text-zinc-900">{app.email}</span>
+                        </p>
+                        <p className="truncate">
+                          Swish: <span className="font-bold text-zinc-900">{app.swishNumber}</span>
+                        </p>
+                        {app.contactName && (
+                          <p className="truncate">
+                            Contact: <span className="text-zinc-900">{app.contactName}</span> {app.phone ? `(${app.phone})` : ""}
+                          </p>
+                        )}
+                      </div>
+
+                      {app.description && (
+                        <p className="text-[11px] text-zinc-600 italic line-clamp-2 bg-amber-50/50 p-2 rounded-lg border border-amber-100">
+                          "{app.description}"
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="pt-2 flex items-center gap-2 border-t border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={() => handleReviewApplication(app)}
+                        className="flex-1 bg-orange-500 hover:bg-orange-600 active:scale-98 text-white font-display font-black text-xs py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm shadow-orange-500/20"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Review &amp; Onboard</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Decline vendor application for "${app.stallName}"?`)) {
+                            handleUpdateVendorApplicationStatus(app.id, "rejected");
+                          }
+                        }}
+                        className="px-3 py-2 bg-zinc-100 hover:bg-rose-50 text-zinc-600 hover:text-rose-600 font-bold text-xs rounded-xl transition-colors cursor-pointer border border-zinc-200 shrink-0"
+                        title="Decline application"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between items-center border-b border-zinc-150 pb-4">
             <div>
               <h3 className="font-display font-black text-xl text-zinc-900">Participating Vendor Stalls</h3>
               <p className="text-xs text-zinc-500 font-medium">Approve, manage, or onboard new food stalls for the festival.</p>
             </div>
             <button
-              onClick={() => setShowAddVendorModal(true)}
+              onClick={() => {
+                setReviewingApplicationId(null);
+                setShowAddVendorModal(true);
+              }}
               className="bg-orange-500 hover:bg-orange-600 text-white font-display font-black text-xs px-4 py-2.5 rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-orange-500/20"
             >
               <Plus className="w-4 h-4" />
@@ -1754,14 +1892,26 @@ export const AdminPage: React.FC = () => {
           <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-left">
             <div className="flex justify-between items-start border-b border-zinc-150 pb-3">
               <div>
-                <h3 className="font-display font-black text-xl text-zinc-900">Onboard New Food Stall</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-display font-black text-xl text-zinc-900">Onboard New Food Stall</h3>
+                  {reviewingApplicationId && (
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                      From Application
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Provision kitchen terminal access and invite vendor for {currentEvent.name}.
+                  {reviewingApplicationId
+                    ? "Approving applicant stall and provisioning kitchen access."
+                    : `Provision kitchen terminal access and invite vendor for ${currentEvent.name}.`}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setShowAddVendorModal(false)}
+                onClick={() => {
+                  setShowAddVendorModal(false);
+                  setReviewingApplicationId(null);
+                }}
                 className="text-zinc-400 hover:text-zinc-600 p-1.5 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1892,7 +2042,10 @@ export const AdminPage: React.FC = () => {
               <div className="pt-3 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddVendorModal(false)}
+                  onClick={() => {
+                    setShowAddVendorModal(false);
+                    setReviewingApplicationId(null);
+                  }}
                   className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold py-2.5 rounded-xl cursor-pointer"
                 >
                   Cancel
