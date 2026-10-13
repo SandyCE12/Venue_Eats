@@ -101,6 +101,13 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
       ? (customBankName.trim() || "Other Bank") 
       : selectedBank;
 
+    const hasValidBankDetails = Boolean(
+      (bankAccountNumber.trim() && bankClearingNumber.trim()) || 
+      bankGiro.trim() || 
+      plusGiro.trim() || 
+      bankIban.trim()
+    );
+
     setIsSaving(true);
     try {
       await onUpdateVendorProfile(vendor.id, {
@@ -120,7 +127,9 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
         bankGiro: bankGiro.trim(),
         plusGiro: plusGiro.trim(),
         bankIban: bankIban.trim(),
-        bankBicSwift: bankBicSwift.trim()
+        bankBicSwift: bankBicSwift.trim(),
+        // Confirm vendor status when bank details are provided
+        ...(hasValidBankDetails ? { isApproved: true } : {})
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
@@ -186,14 +195,32 @@ export default function VendorSettings({ vendor, onUpdateVendorProfile }: Vendor
               <Landmark className="w-4 h-4" />
               <h3 className="text-xs font-black uppercase tracking-wider">Bankkonto &amp; Avräkning (Bank Settlement)</h3>
             </div>
-            <span className="text-[9px] bg-sky-500/20 text-sky-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-sky-400" /> Direct Wire Settlement
-            </span>
+            {vendor.isApproved === true ? (
+              <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-emerald-400" /> Payout Details Verified &amp; Active
+              </span>
+            ) : (
+              <span className="text-[9px] bg-amber-500/20 text-amber-300 font-mono font-bold px-2 py-0.5 rounded-full uppercase flex items-center gap-1 animate-pulse">
+                <AlertCircle className="w-3 h-3 text-amber-400" /> Action Required: Add Bank Details
+              </span>
+            )}
           </div>
 
           <p className="text-[10.5px] text-zinc-300 leading-relaxed font-medium">
             Your registered Swedish bank account for daily event revenue transfers, card payment settlements (Visa/Mastercard), and official Skatteverket-compliant fiscal accounting.
           </p>
+
+          {vendor.isApproved !== true && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-amber-300 text-xs">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Vendor Status Pending</p>
+                <p className="text-[11px] text-zinc-300 mt-0.5">
+                  Please enter your clearing and bank account number (or Bankgiro) below and click <strong>Save Settings</strong> to confirm your vendor profile and unlock live payout routing.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             {/* Bank Name Selector */}

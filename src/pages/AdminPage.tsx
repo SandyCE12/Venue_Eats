@@ -38,7 +38,14 @@ import {
   ArrowUpRight,
   Clock,
   HelpCircle,
-  Trash2
+  Trash2,
+  Copy,
+  Key,
+  Mail,
+  RefreshCw,
+  AlertCircle,
+  EyeOff,
+  ExternalLink
 } from "lucide-react";
 import { AdminSalesCharts } from "../components/AdminSalesCharts";
 import EventMap from "../components/EventMap";
@@ -376,10 +383,19 @@ export const AdminPage: React.FC = () => {
   // New vendor form fields
   const [newVendorName, setNewVendorName] = useState("");
   const [newVendorCuisine, setNewVendorCuisine] = useState("");
+  const [newVendorEmail, setNewVendorEmail] = useState("");
+  const [newVendorPassword, setNewVendorPassword] = useState(() => `Kitchen#${Math.floor(1000 + Math.random() * 9000)}`);
+  const [showNewVendorPassword, setShowNewVendorPassword] = useState(false);
   const [newVendorLogo, setNewVendorLogo] = useState("🍛");
   const [newVendorStall, setNewVendorStall] = useState("Stall #05");
   const [newVendorSwish, setNewVendorSwish] = useState("123 999 88 77");
   const [isSubmittingVendor, setIsSubmittingVendor] = useState(false);
+
+  // Vendor Credentials & Invitation Modal State
+  const [createdVendorCredentials, setCreatedVendorCredentials] = useState<{ vendor: Vendor; password: string } | null>(null);
+  const [isSendingVendorEmail, setIsSendingVendorEmail] = useState(false);
+  const [vendorEmailDispatchResult, setVendorEmailDispatchResult] = useState<{ success: boolean; message: string; error?: string } | null>(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
 
   if (!loggedInAdminId) {
     return (
@@ -394,22 +410,26 @@ export const AdminPage: React.FC = () => {
 
   const handleCreateVendor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVendorName.trim() || !newVendorCuisine.trim() || isSubmittingVendor) return;
+    if (!newVendorName.trim() || !newVendorCuisine.trim() || !newVendorEmail.trim() || isSubmittingVendor) return;
 
     setIsSubmittingVendor(true);
+    const assignedPassword = newVendorPassword.trim() || `Kitchen#${Math.floor(1000 + Math.random() * 9000)}`;
+    const cleanEmail = newVendorEmail.trim().toLowerCase();
+
     try {
       const newV: Vendor = {
         id: `v_${Date.now()}`,
         eventId: currentEvent.id,
-        isApproved: true,
+        isApproved: "pending_bank", // Mandatory pending bank details
         name: newVendorName.trim(),
         cuisine: newVendorCuisine.trim(),
         logo: newVendorLogo || "🍛",
         rating: 5.0,
         location: currentEvent.location || "Festival Grounds",
         stallNumber: newVendorStall || `Stall #${String(eventVendors.length + 1).padStart(2, '0')}`,
-        pin: "9999",
-        email: `${newVendorName.trim().toLowerCase().replace(/\s+/g, '')}@venueeat.se`,
+        pin: assignedPassword.substring(0, 8),
+        password: assignedPassword,
+        email: cleanEmail,
         swishNumber: newVendorSwish || "123 999 88 77",
         menu: [
           {
@@ -431,8 +451,58 @@ export const AdminPage: React.FC = () => {
       setShowAddVendorModal(false);
       setNewVendorName("");
       setNewVendorCuisine("");
+      setNewVendorEmail("");
+      setNewVendorPassword(`Kitchen#${Math.floor(1000 + Math.random() * 9000)}`);
+      
+      // Open credentials & invitation modal immediately
+      setCreatedVendorCredentials({ vendor: newV, password: assignedPassword });
+      setVendorEmailDispatchResult(null);
     } finally {
       setIsSubmittingVendor(false);
+    }
+  };
+
+  const handleSendVendorInvitation = async (vendor: Vendor, password: string) => {
+    setIsSendingVendorEmail(true);
+    setVendorEmailDispatchResult(null);
+    try {
+      const res = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: vendor.email,
+          vendorName: vendor.name,
+          stallNumber: vendor.stallNumber,
+          eventName: currentEvent.name,
+          location: currentEvent.location,
+          password: password,
+          role: "vendor",
+          loginUrl: `${window.location.origin}/vendor`,
+          apiKey: typeof window !== "undefined" ? localStorage.getItem("venueeat_resend_api_key") || undefined : undefined
+        })
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        setVendorEmailDispatchResult({ 
+          success: true, 
+          message: `Official onboarding invitation dispatched to ${vendor.email}!` 
+        });
+      } else {
+        const errMsg = data?.error || `Email dispatch failed (Status ${res.status})`;
+        setVendorEmailDispatchResult({ 
+          success: false, 
+          message: errMsg, 
+          error: errMsg 
+        });
+      }
+    } catch (err: any) {
+      setVendorEmailDispatchResult({ 
+        success: false, 
+        message: err?.message || "Failed to dispatch email", 
+        error: err?.message 
+      });
+    } finally {
+      setIsSendingVendorEmail(false);
     }
   };
 
@@ -984,7 +1054,15 @@ export const AdminPage: React.FC = () => {
               </div>
             ) : (
               eventVendors.map(v => {
-                const isApproved = v.isApproved === true;
+                const hasBank = Boolean(
+                  (v.bankAccountNumber && v.bankClearingNumber) ||
+                  v.bankGiro ||
+                  v.plusGiro ||
+                  v.bankIban
+                );
+                const isVerified = v.isApproved === true;
+                const isPendingBank = v.isApproved === "pending_bank" || (!hasBank && v.isApproved !== false && v.isApproved !== "rejected");
+                const isSuspended = v.isApproved === false || v.isApproved === "rejected";
                 const storeOrders = eventOrders.filter(
                   (o) => o.vendorId === v.id || o.vendorName === v.name
                 );
@@ -1014,12 +1092,18 @@ export const AdminPage: React.FC = () => {
                       </div>
                       <span
                         className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
-                          isApproved
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-rose-100 text-rose-800"
+                          isVerified
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : isPendingBank
+                            ? "bg-amber-100 text-amber-800 border border-amber-300"
+                            : "bg-rose-100 text-rose-800 border border-rose-300"
                         }`}
                       >
-                        {isApproved ? "Approved" : "Suspended"}
+                        {isVerified 
+                          ? "Approved & Active" 
+                          : isPendingBank 
+                          ? "Pending Bank Details" 
+                          : "Suspended"}
                       </span>
                     </div>
 
@@ -1060,18 +1144,7 @@ export const AdminPage: React.FC = () => {
                     </button>
 
                     <div className="flex gap-2">
-                      {isApproved ? (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSuspendVendor(v.id);
-                          }}
-                          className="flex-1 bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
-                        >
-                          Suspend Stall
-                        </button>
-                      ) : (
+                      {isSuspended ? (
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1082,7 +1155,33 @@ export const AdminPage: React.FC = () => {
                         >
                           Approve Stall
                         </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSuspendVendor(v.id);
+                          }}
+                          className="flex-1 bg-zinc-200 hover:bg-rose-100 hover:text-rose-800 text-zinc-700 font-bold text-xs py-1.5 rounded-xl transition-all cursor-pointer"
+                        >
+                          Suspend Stall
+                        </button>
                       )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCreatedVendorCredentials({
+                            vendor: v,
+                            password: v.password || v.pin || "vendor123"
+                          });
+                          setVendorEmailDispatchResult(null);
+                        }}
+                        className="px-2.5 bg-zinc-100 hover:bg-orange-50 text-zinc-600 hover:text-orange-600 rounded-xl transition-colors cursor-pointer flex items-center justify-center border border-zinc-200 shrink-0"
+                        title="View / Share Vendor Credentials"
+                      >
+                        <Key className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1651,10 +1750,25 @@ export const AdminPage: React.FC = () => {
 
       {/* ADD VENDOR MODAL */}
       {showAddVendorModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="font-display font-black text-xl text-zinc-900">Onboard New Food Stall</h3>
-            <form onSubmit={handleCreateVendor} className="space-y-3 text-xs font-medium">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-left">
+            <div className="flex justify-between items-start border-b border-zinc-150 pb-3">
+              <div>
+                <h3 className="font-display font-black text-xl text-zinc-900">Onboard New Food Stall</h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Provision kitchen terminal access and invite vendor for {currentEvent.name}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddVendorModal(false)}
+                className="text-zinc-400 hover:text-zinc-600 p-1.5 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateVendor} className="space-y-3.5 text-xs font-medium">
               <div>
                 <label className="font-bold text-zinc-700 block mb-1">Vendor Stall Name</label>
                 <input
@@ -1663,7 +1777,7 @@ export const AdminPage: React.FC = () => {
                   onChange={(e) => setNewVendorName(e.target.value)}
                   placeholder="e.g. Malmö Falafel Supreme"
                   required
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none focus:border-orange-500"
                 />
               </div>
 
@@ -1675,8 +1789,63 @@ export const AdminPage: React.FC = () => {
                   onChange={(e) => setNewVendorCuisine(e.target.value)}
                   placeholder="e.g. Middle Eastern Street Eats"
                   required
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none focus:border-orange-500"
                 />
+              </div>
+
+              {/* Real Vendor Email */}
+              <div>
+                <label className="font-bold text-zinc-700 block mb-1">
+                  Vendor Official Email (Portal Login ID)
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    value={newVendorEmail}
+                    onChange={(e) => setNewVendorEmail(e.target.value)}
+                    placeholder="e.g. chef@falafelsupreme.se"
+                    required
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 pl-8 text-xs text-zinc-900 outline-none focus:border-orange-500"
+                  />
+                  <Mail className="w-4 h-4 text-zinc-400 absolute left-2.5 top-3" />
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  The vendor will use this email address to sign into the Kitchen Terminal (/vendor).
+                </p>
+              </div>
+
+              {/* Kitchen Login Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-zinc-700 block">
+                    Kitchen Terminal Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setNewVendorPassword(`Kitchen#${Math.floor(1000 + Math.random() * 9000)}`)}
+                    className="text-[10px] text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Regenerate</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewVendorPassword ? "text" : "password"}
+                    value={newVendorPassword}
+                    onChange={(e) => setNewVendorPassword(e.target.value)}
+                    required
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 pl-8 pr-10 text-xs text-zinc-900 font-mono font-bold outline-none focus:border-orange-500"
+                  />
+                  <Key className="w-4 h-4 text-zinc-400 absolute left-2.5 top-3" />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewVendorPassword(!showNewVendorPassword)}
+                    className="absolute right-2.5 top-2.5 p-1 text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                  >
+                    {showNewVendorPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1686,7 +1855,7 @@ export const AdminPage: React.FC = () => {
                     type="text"
                     value={newVendorLogo}
                     onChange={(e) => setNewVendorLogo(e.target.value)}
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none text-center text-lg"
                   />
                 </div>
                 <div>
@@ -1695,6 +1864,7 @@ export const AdminPage: React.FC = () => {
                     type="text"
                     value={newVendorStall}
                     onChange={(e) => setNewVendorStall(e.target.value)}
+                    placeholder="Stall #01"
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none"
                   />
                 </div>
@@ -1706,8 +1876,17 @@ export const AdminPage: React.FC = () => {
                   type="text"
                   value={newVendorSwish}
                   onChange={(e) => setNewVendorSwish(e.target.value)}
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 outline-none"
+                  placeholder="123 999 88 77"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-xs text-zinc-900 font-mono outline-none"
                 />
+              </div>
+
+              {/* Mandatory Bank Verification Alert Notice */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-amber-900 text-[11px]">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Mandatory Bank Setup:</strong> The onboarded vendor will start with <em>Pending Bank Details</em>. Once the vendor logs into their Kitchen Terminal and saves their Swedish bank account in Settings, their status will automatically be confirmed and active for payouts.
+                </p>
               </div>
 
               <div className="pt-3 flex gap-2">
@@ -1721,12 +1900,131 @@ export const AdminPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={isSubmittingVendor}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer"
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  {isSubmittingVendor ? "Onboarding..." : "Confirm & Approve"}
+                  {isSubmittingVendor ? "Onboarding..." : "Confirm & Onboard"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* VENDOR CREDENTIALS & INVITATION MODAL */}
+      {createdVendorCredentials && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-left">
+            <div className="flex justify-between items-start border-b border-zinc-150 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-orange-500/10 text-orange-600 rounded-2xl border border-orange-500/20">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-xl text-zinc-900">
+                    Vendor Access Credentials
+                  </h3>
+                  <p className="text-xs text-zinc-500 font-medium">
+                    {createdVendorCredentials.vendor.name} • {createdVendorCredentials.vendor.stallNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreatedVendorCredentials(null)}
+                className="text-zinc-400 hover:text-zinc-600 p-1.5 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Credentials Card */}
+            <div className="bg-zinc-950 text-white rounded-2xl p-5 border border-zinc-800 space-y-3 font-mono text-xs">
+              <div className="flex justify-between items-center text-[10px] text-zinc-400 uppercase font-bold border-b border-zinc-800 pb-2">
+                <span>Kitchen Terminal Credentials</span>
+                <span className="text-orange-400">VenueEat Nordic</span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase">Kitchen Portal URL</span>
+                <span className="font-bold text-sky-400 text-xs break-all">
+                  {typeof window !== "undefined" ? window.location.origin : ""}/vendor
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase">Vendor Login Email</span>
+                <span className="font-bold text-white text-sm break-all">
+                  {createdVendorCredentials.vendor.email}
+                </span>
+              </div>
+
+              <div>
+                <span className="text-[10px] text-zinc-400 block uppercase">Assigned Password</span>
+                <span className="font-black text-orange-400 text-base tracking-wider">
+                  {createdVendorCredentials.password}
+                </span>
+              </div>
+            </div>
+
+            {/* Bank Warning Notice */}
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3.5 text-xs text-amber-900 flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Mandatory Step for Vendor:</p>
+                <p className="text-[11px] text-zinc-700 mt-0.5 leading-relaxed">
+                  Upon first login, the vendor must open <strong>Stall Settings</strong> and fill in their Swedish bank clearing &amp; account number (or Bankgiro) to confirm vendor status and activate live payouts.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Feedback Result */}
+            {vendorEmailDispatchResult && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                vendorEmailDispatchResult.success 
+                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  : "bg-rose-50 text-rose-800 border border-rose-200"
+              }`}>
+                {vendorEmailDispatchResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                <span className="font-medium">{vendorEmailDispatchResult.message}</span>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `VenueEat Kitchen Terminal Access\nEvent: ${currentEvent.name}\nStall: ${createdVendorCredentials.vendor.name} (${createdVendorCredentials.vendor.stallNumber})\n\nPortal URL: ${window.location.origin}/vendor\nLogin Email: ${createdVendorCredentials.vendor.email}\nPassword: ${createdVendorCredentials.password}\n\n*Important*: After signing in, please open Stall Settings and enter your Swedish bank details (Clearing + Kontonummer) or Bankgiro to confirm your stall and activate live payouts.`;
+                    navigator.clipboard.writeText(text);
+                    setCopiedCredentials(true);
+                    setTimeout(() => setCopiedCredentials(false), 3000);
+                  }}
+                  className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs py-3 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Copy className="w-4 h-4 text-orange-400" />
+                  <span>{copiedCredentials ? "Copied to Clipboard!" : "Copy Access Details"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSendingVendorEmail}
+                  onClick={() => handleSendVendorInvitation(createdVendorCredentials.vendor, createdVendorCredentials.password)}
+                  className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold text-xs py-3 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>{isSendingVendorEmail ? "Dispatching Email..." : "Send Email Invitation"}</span>
+                </button>
+              </div>
+
+              {/* Direct Mail Client Fallback */}
+              <a
+                href={`mailto:${createdVendorCredentials.vendor.email}?subject=${encodeURIComponent(`VenueEat Kitchen Access: ${createdVendorCredentials.vendor.name} (${currentEvent.name})`)}&body=${encodeURIComponent(`Hej ${createdVendorCredentials.vendor.name}!\n\nYour food stall has been onboarded to VenueEat for ${currentEvent.name}.\n\nKitchen Portal: ${typeof window !== "undefined" ? window.location.origin : ""}/vendor\nLogin Email: ${createdVendorCredentials.vendor.email}\nPassword: ${createdVendorCredentials.password}\n\nImportant: After logging in, please add your Swedish bank details in Settings to verify and activate your stall payouts.\n\nBest regards,\n${currentEvent.name} Festival Administration`)}`}
+                className="w-full text-center block text-[11px] text-zinc-500 hover:text-zinc-800 font-bold py-1 transition-colors cursor-pointer"
+              >
+                Open in Local Email Client (Mailto) &rarr;
+              </a>
+            </div>
           </div>
         </div>
       )}
