@@ -33,6 +33,7 @@ service cloud.firestore {
         && (!('location' in data) || (data.location is string && data.location.size() <= 150))
         && (!('pin' in data) || (data.pin is string && data.pin.size() <= 50))
         && (!('email' in data) || (data.email is string && data.email.size() <= 100))
+        && (!('password' in data) || (data.password is string && data.password.size() <= 100))
         && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
         && (!('swishNumber' in data) || (data.swishNumber is string && data.swishNumber.size() <= 50))
         && (!('stallNumber' in data) || (data.stallNumber is string && data.stallNumber.size() <= 50))

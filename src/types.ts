@@ -27,8 +27,9 @@ export interface Vendor {
   stallNumber?: string;
   pin?: string;
   email?: string;
+  password?: string;
   phone?: string;
-  isApproved?: boolean | "rejected" | string;
+  isApproved?: boolean | "rejected" | "pending_bank" | string;
   swishNumber?: string;
   // Bank settlement & payout details
   bankName?: string;

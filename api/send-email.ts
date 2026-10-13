@@ -39,16 +39,22 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       permissions,
       apiKey: customApiKey,
       fromEmail: customFromEmail,
+      role,
+      vendorName,
+      stallNumber,
     } = body || {};
 
     if (!to || !eventName) {
       return res.status(400).json({ error: "Missing required fields (to, eventName)." });
     }
 
-    const recipientName = adminName || "Event Organizer";
-    const portalLink = loginUrl || "https://venue-eats.vercel.app/admin";
-    const pass = password || "eventadmin2026";
-    const subject = `VenueEat Access Granted: ${eventName} (${eventCode || "EVT"}) Admin Portal`;
+    const isVendor = role === "vendor";
+    const recipientName = isVendor ? (vendorName || "Food Stall Vendor") : (adminName || "Event Organizer");
+    const portalLink = loginUrl || (isVendor ? "https://venue-eats.vercel.app/vendor" : "https://venue-eats.vercel.app/admin");
+    const pass = password || (isVendor ? "Kitchen#2026" : "eventadmin2026");
+    const subject = isVendor 
+      ? `VenueEat Kitchen Access: ${vendorName || "Food Stall"} (${eventName})`
+      : `VenueEat Access Granted: ${eventName} (${eventCode || "EVT"}) Admin Portal`;
 
     // 1. Resolve Resend API Key from request body, process.env.RESEND_API_KEY, or VITE_RESEND_API_KEY
     const resendApiKey = (
@@ -66,7 +72,84 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       });
     }
 
-    const htmlContent = `
+    const htmlContent = isVendor ? `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${subject}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 24px;">
+  <div style="max-width: 580px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+    
+    <!-- Header -->
+    <div style="background-color: #09090b; padding: 24px 32px; border-bottom: 1px solid #27272a; text-align: left;">
+      <div style="display: inline-block; background-color: #f97316; color: #ffffff; font-weight: 900; font-size: 14px; padding: 4px 8px; border-radius: 8px;">VE</div>
+      <span style="font-size: 20px; font-weight: 900; color: #ffffff; margin-left: 8px; letter-spacing: -0.5px;">VenueEat Nordic</span>
+      <p style="margin: 6px 0 0 0; font-size: 11px; color: #a1a1aa; font-family: monospace;">Stockholm Mobile Food Operations & Swish Portal</p>
+    </div>
+
+    <!-- Body -->
+    <div style="padding: 32px; text-align: left;">
+      <h2 style="font-size: 22px; font-weight: 900; color: #ffffff; margin: 0 0 12px 0;">Hej ${recipientName}!</h2>
+      <p style="font-size: 14px; line-height: 1.6; color: #d4d4d8; margin: 0 0 24px 0;">
+        Your food stall has been onboarded to <strong>${eventName}</strong> on the VenueEat platform! You can now log into your live Kitchen Terminal to manage your menu items, accept attendee orders, and monitor real-time Swish payouts.
+      </p>
+
+      <!-- Stall Summary Card -->
+      <div style="background-color: #27272a; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+        <div style="font-size: 10px; font-weight: 800; color: #f97316; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-family: monospace;">Stall Information</div>
+        <div style="font-size: 16px; font-weight: 800; color: #ffffff; margin-bottom: 4px;">${vendorName || recipientName}</div>
+        <div style="font-size: 12px; color: #a1a1aa; margin-bottom: 6px;">Stall Number: <strong>${stallNumber || "Assigned Stall"}</strong></div>
+        <div style="font-size: 12px; color: #a1a1aa;">Festival: <strong>${eventName}</strong> (${location || "Event Venue"})</div>
+      </div>
+
+      <!-- Credentials Card -->
+      <div style="background: linear-gradient(135deg, #18181b, #27272a); border: 2px solid #f97316; border-radius: 14px; padding: 20px; margin-bottom: 24px;">
+        <div style="font-size: 10px; font-weight: 800; color: #f97316; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-family: monospace;">Kitchen Access Credentials</div>
+        
+        <div style="margin-bottom: 10px;">
+          <span style="font-size: 11px; color: #a1a1aa; display: block; font-family: monospace; text-transform: uppercase;">Portal Login Email:</span>
+          <span style="font-size: 14px; color: #ffffff; font-weight: bold; font-family: monospace;">${to}</span>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <span style="font-size: 11px; color: #a1a1aa; display: block; font-family: monospace; text-transform: uppercase;">Assigned Password:</span>
+          <span style="font-size: 15px; color: #f97316; font-weight: 900; font-family: monospace; letter-spacing: 0.5px;">${pass}</span>
+        </div>
+      </div>
+
+      <!-- Mandatory Bank Details Notice -->
+      <div style="background-color: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 14px; padding: 18px; margin-bottom: 24px;">
+        <div style="font-size: 11px; font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Action Required: Swedish Bank Settlement</div>
+        <p style="font-size: 12px; color: #e4e4e7; line-height: 1.5; margin: 0;">
+          After signing in, please open <strong>Stall Settings</strong> and enter your Swedish bank account details (Clearing + Account Number or Bankgiro). This confirms your vendor status and activates direct payouts.
+        </p>
+      </div>
+
+      <!-- Direct Login CTA -->
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${portalLink}" target="_blank" style="display: inline-block; background-color: #f97316; color: #ffffff; font-size: 14px; font-weight: 900; text-decoration: none; padding: 14px 32px; border-radius: 14px; box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.4); text-transform: uppercase; letter-spacing: 0.5px;">
+          Open Kitchen Terminal &rarr;
+        </a>
+      </div>
+
+      <!-- Security Notice -->
+      <p style="font-size: 11px; color: #71717a; line-height: 1.5; margin: 24px 0 0 0; border-top: 1px solid #27272a; padding-top: 16px;">
+        This email was sent on behalf of the ${eventName} festival administration. For questions or support, contact the event organizer or support@venueeat.se.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background-color: #09090b; padding: 16px 32px; text-align: center; border-top: 1px solid #27272a;">
+      <p style="font-size: 10px; color: #52525b; margin: 0; font-family: monospace;">
+        VenueEat Nordic AB • Kungsträdgården, 111 47 Stockholm, Sweden • support@venueeat.se
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+    ` : `
 <!DOCTYPE html>
 <html>
 <head>

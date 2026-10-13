@@ -45,7 +45,12 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
           v => v.email?.trim().toLowerCase() === cleanEmail || v.name.toLowerCase() === cleanEmail
         );
         if (matchedVendor) {
-          onSuccess(matchedVendor.id);
+          const expectedPassword = matchedVendor.password || matchedVendor.pin || "vendor123";
+          if (password.trim() === expectedPassword) {
+            onSuccess(matchedVendor.id);
+          } else {
+            setError(`Incorrect password for ${matchedVendor.name}. Please enter the password provided during onboarding.`);
+          }
         } else {
           setError(`No vendor stall registered with email "${email}".`);
         }

@@ -48,6 +48,14 @@ export const VendorPage: React.FC = () => {
   const selectedVendor = vendors.find(v => v.id === loggedInVendorId) || vendors[0];
   const vendorOrders = orders.filter(o => o.vendorId === selectedVendor?.id);
 
+  const hasBankDetails = Boolean(
+    (selectedVendor?.bankAccountNumber && selectedVendor?.bankClearingNumber) ||
+    selectedVendor?.bankGiro ||
+    selectedVendor?.plusGiro ||
+    selectedVendor?.bankIban
+  );
+  const isPendingBank = selectedVendor?.isApproved === "pending_bank" || !hasBankDetails;
+
   return (
     <div className="space-y-6 text-left pb-16 animate-fadeIn">
       
@@ -58,8 +66,12 @@ export const VendorPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-display font-black text-2xl tracking-tight">{selectedVendor?.name}</h2>
-              <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase">
-                Active Kitchen Terminal
+              <span className={`border text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
+                isPendingBank 
+                  ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                  : "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+              }`}>
+                {isPendingBank ? "Pending Bank Verification" : "Active Kitchen Terminal"}
               </span>
             </div>
             <p className="text-xs text-zinc-400 font-medium mt-1">
@@ -78,6 +90,37 @@ export const VendorPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* PENDING BANK DETAILS ACTION REQUIRED BANNER */}
+      {isPendingBank && (
+        <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 bg-amber-500 text-zinc-950 rounded-2xl shrink-0 mt-0.5 sm:mt-0 font-bold">
+              <Landmark className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-black text-sm text-amber-500 uppercase tracking-wider">
+                  Action Required: Add Bank Settlement Details
+                </h3>
+                <span className="bg-amber-500/20 text-amber-400 font-mono text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                  Pending Activation
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 font-medium mt-1 leading-relaxed">
+                Your vendor status and festival payouts cannot be verified until your Swedish bank account (Clearing + Account number) or Bankgiro is saved in Stall Settings.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab("settings")}
+            className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs px-4 py-2.5 rounded-2xl transition-all cursor-pointer shrink-0 shadow-lg shadow-amber-500/20 flex items-center gap-2"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>Complete Bank Profile</span>
+          </button>
+        </div>
+      )}
 
       {/* VENDOR TABS NAVIGATION */}
       <div className="flex items-center gap-2 border-b border-zinc-200 pb-4 overflow-x-auto scrollbar-none">
@@ -123,12 +166,15 @@ export const VendorPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab("settings")}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display font-black text-xs transition-all cursor-pointer ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display font-black text-xs transition-all cursor-pointer relative ${
             activeTab === "settings" ? "bg-zinc-900 text-white shadow-md" : "bg-white text-zinc-600 border border-zinc-200"
           }`}
         >
           <Settings className="w-4 h-4" />
           <span>Stall Settings</span>
+          {isPendingBank && (
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse ml-0.5" title="Bank details required" />
+          )}
         </button>
 
         <button
