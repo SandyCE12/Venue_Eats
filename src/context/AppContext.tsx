@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { DEFAULT_VENDORS, MANAGED_EVENTS } from "../data";
-import { Vendor, MenuItem, Order, OrderStatus, ManagedEvent, EventStatus, CartEntry } from "../types";
+import { Vendor, MenuItem, Order, OrderStatus, ManagedEvent, EventStatus, CartEntry, VendorApplication } from "../types";
 import { 
   db, 
   auth, 
@@ -94,6 +94,9 @@ interface AppContextType {
   handleDeleteEvent: (eventId: string) => Promise<void>;
   dispatchAdminInvitationEmail: (event: ManagedEvent, customPassword?: string, customApiKey?: string) => Promise<{ success: boolean; message: string; id?: string; error?: string }>;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
+  vendorApplications: VendorApplication[];
+  handleSubmitVendorApplication: (appData: Omit<VendorApplication, "id" | "status" | "submittedAt">) => Promise<void>;
+  handleUpdateVendorApplicationStatus: (applicationId: string, status: "pending" | "approved" | "rejected") => Promise<void>;
   /** The event the attendee has chosen from the selector screen (localStorage-backed). null = show selector. */
   selectedUserEventId: string | null;
   setSelectedUserEventId: (id: string | null) => void;
@@ -167,6 +170,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return localStorage.getItem("venueeat_selected_event_id") || "evt-001";
   });
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Vendor Applications state (from attendee "Are you a vendor?" modal)
+  const [vendorApplications, setVendorApplications] = useState<VendorApplication[]>(() => {
+    try {
+      const saved = localStorage.getItem("venueeat_vendor_applications_v1");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Attendee event selection — persisted in localStorage so push notifications can reference it later
   const setSelectedUserEventId = (id: string | null) => {
@@ -400,10 +413,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     );
 
+    const appsPath = "vendor_applications";
+    const unsubscribeApplications = onSnapshot(
+      collection(db, appsPath),
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedApps: VendorApplication[] = [];
+          snapshot.forEach((docSnap) => {
+            loadedApps.push({
+              id: docSnap.id,
+              ...docSnap.data()
+            } as VendorApplication);
+          });
+          setVendorApplications(loadedApps);
+          try {
+            localStorage.setItem("venueeat_vendor_applications_v1", JSON.stringify(loadedApps));
+          } catch (e) {}
+        }
+      },
+      (error) => {
+        console.warn("Firestore vendor_applications onSnapshot error:", error);
+      }
+    );
+
     return () => {
       unsubscribeVendors();
       unsubscribeOrders();
       unsubscribeEvents();
+      unsubscribeApplications();
     };
   }, []);
 
@@ -776,6 +813,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return { minutes, activeCount, congestionLevel };
   };
 
+  const handleSubmitVendorApplication = async (
+    appData: Omit<VendorApplication, "id" | "status" | "submittedAt">
+  ) => {
+    const newApp: VendorApplication = {
+      ...appData,
+      id: `app_${Date.now()}`,
+      status: "pending",
+      submittedAt: Date.now()
+    };
+    try {
+      await setDoc(doc(db, "vendor_applications", newApp.id), cleanUndefined(newApp));
+    } catch (err) {
+      console.warn("Firestore save vendor application error:", err);
+    }
+    setVendorApplications(prev => {
+      const next = [newApp, ...prev.filter(a => a.id !== newApp.id)];
+      try {
+        localStorage.setItem("venueeat_vendor_applications_v1", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setNotification(`Application submitted for "${newApp.stallName}" (${newApp.eventName})!`);
+    logActivity(`Vendor application submitted for "${newApp.stallName}" at ${newApp.eventName}.`, "vendor", "info");
+  };
+
+  const handleUpdateVendorApplicationStatus = async (
+    applicationId: string, 
+    status: "pending" | "approved" | "rejected"
+  ) => {
+    try {
+      await updateDoc(doc(db, "vendor_applications", applicationId), { status });
+    } catch (err) {
+      console.warn("Firestore update vendor application error:", err);
+    }
+    setVendorApplications(prev => {
+      const next = prev.map(a => a.id === applicationId ? { ...a, status } : a);
+      try {
+        localStorage.setItem("venueeat_vendor_applications_v1", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    setNotification(`Application status updated to "${status}".`);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -800,6 +881,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         selectedVendorStallId,
         showCartDrawer,
         cartEntries,
+        vendorApplications,
         
         setAttendeeTab,
         setOrdersSubTab,
@@ -837,6 +919,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleDeleteEvent,
         dispatchAdminInvitationEmail,
         estimateVendorWaitTime,
+        handleSubmitVendorApplication,
+        handleUpdateVendorApplicationStatus,
         selectedUserEventId,
         setSelectedUserEventId
       }}

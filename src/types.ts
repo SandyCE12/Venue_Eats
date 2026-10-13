@@ -188,3 +188,19 @@ export interface SuperAdminAccount {
   name: string;
   role: "Owner" | "Operations" | "Finance";
 }
+
+export interface VendorApplication {
+  id: string;
+  eventId: string;
+  eventName: string;
+  stallName: string;
+  cuisine: string;
+  email: string;
+  swishNumber: string;
+  phone?: string;
+  contactName?: string;
+  logo?: string;
+  description?: string;
+  status: "pending" | "approved" | "rejected";
+  submittedAt: number;
+}
