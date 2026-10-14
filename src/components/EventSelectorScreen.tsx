@@ -224,10 +224,12 @@ export const EventSelectorScreen: React.FC = () => {
   }, [liveEvents, searchFilter]);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative overflow-hidden flex flex-col justify-between selection:bg-orange-500 selection:text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 relative flex flex-col justify-between selection:bg-orange-500 selection:text-white">
       {/* Subtle Ambient Backing Glow */}
-      <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-orange-600/15 via-orange-950/5 to-transparent pointer-events-none" />
-      <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 inset-x-0 h-96 bg-gradient-to-b from-orange-600/15 via-orange-950/5 to-transparent" />
+        <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-orange-500/10 rounded-full blur-3xl" />
+      </div>
 
       {/* Top Header Hero */}
       <div className="relative z-10 max-w-5xl mx-auto w-full px-4 pt-8 sm:pt-10 pb-6 text-center space-y-3">

@@ -52,12 +52,12 @@ export const VendorJoinModal: React.FC<VendorJoinModalProps> = ({ isOpen, onClos
   // Lock body scroll when modal is open and restore on close
   useEffect(() => {
     if (isOpen) {
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = prevOverflow;
+        document.body.style.overflow = "unset";
       };
     } else {
+      document.body.style.overflow = "unset";
       // Reset submission screen when modal is closed
       setSubmittedApplication(null);
     }

@@ -1,5 +1,5 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AppProvider } from "./context/AppContext";
 import { Navbar, Footer } from "./components/Navbar";
 import { AttendeePage } from "./pages/AttendeePage";
@@ -7,10 +7,20 @@ import { VendorPage } from "./pages/VendorPage";
 import { AdminPage } from "./pages/AdminPage";
 import { SuperAdminPage } from "./pages/SuperAdminPage";
 
+function ScrollAndOverflowReset() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    document.body.style.overflow = "unset";
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
+        <ScrollAndOverflowReset />
         <div className="min-h-screen bg-zinc-50 flex flex-col text-zinc-900 font-sans antialiased">
           
           {/* Main Top Header Navigation */}
