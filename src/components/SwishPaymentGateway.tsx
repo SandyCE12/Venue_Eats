@@ -87,11 +87,12 @@ export default function SwishPaymentGateway({
   // Lock body scroll when payment gateway is open
   useEffect(() => {
     if (isOpen) {
-      const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       return () => {
-        document.body.style.overflow = prevOverflow;
+        document.body.style.overflow = "unset";
       };
+    } else {
+      document.body.style.overflow = "unset";
     }
   }, [isOpen]);
 

@@ -106,7 +106,7 @@ export const AttendeePage: React.FC = () => {
     });
   }, [vendors, currentEvent?.id]);
 
-  const [stallSearchQuery, setStallSearchQuery] = useState<string>(" ");
+  const [stallSearchQuery, setStallSearchQuery] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showSwishFlow, setShowSwishFlow] = useState<boolean>(false);
@@ -250,16 +250,26 @@ export const AttendeePage: React.FC = () => {
     }
   }, [currentOrder?.status, mockNotificationsEnabled]);
 
-  // Lock body scroll when modals / drawers are open
+  // Lock body scroll when modals / drawers are open, and unconditionally restore on close/unmount
   useEffect(() => {
-    if (customizingItem || showCartDrawer || showVendorJoinModal) {
-      const originalOverflow = document.body.style.overflow;
+    const isModalActive = Boolean(customizingItem || showCartDrawer || showVendorJoinModal || showSwishFlow);
+    if (isModalActive) {
       document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
+    } else {
+      document.body.style.overflow = "unset";
     }
-  }, [customizingItem, showCartDrawer, showVendorJoinModal]);
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [customizingItem, showCartDrawer, showVendorJoinModal, showSwishFlow]);
+
+  // Ensure body scroll is never left locked on unmount
+  useEffect(() => {
+    document.body.style.overflow = "unset";
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, []);
 
   const activeVendor = eventVendors.find(v => v.id === activeVendorId) || eventVendors[0] || vendors[0];
 
