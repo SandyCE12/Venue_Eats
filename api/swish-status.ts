@@ -61,7 +61,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     if (simulatedSwishStore && simulatedSwishStore.has(paymentId)) {
       const session = simulatedSwishStore.get(paymentId)!;
       return res.status(200).json({
-        status: session.status || "PAID",
+        status: session.status || "CREATED",
         amount: session.amount,
         orderId: session.orderId,
         datePaid: new Date(session.createdAt).toISOString(),
@@ -71,13 +71,12 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const certB64 = process.env.SWISH_CLIENT_CERT_BASE64;
     const keyB64 = process.env.SWISH_CLIENT_KEY_BASE64;
 
-    // If certificates are missing, gracefully return PAID for test flows
+    // If certificates are missing, return CREATED so user sees QR and controls confirmation
     if (!certB64 || !keyB64) {
       return res.status(200).json({
-        status: "PAID",
+        status: "CREATED",
         amount: "0.00",
         orderId: paymentId,
-        datePaid: new Date().toISOString(),
       });
     }
 
@@ -97,9 +96,9 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       });
     }
 
-    return res.status(200).json({ status: "PAID", raw: response.statusCode });
+    return res.status(200).json({ status: "CREATED", raw: response.statusCode });
   } catch (err: any) {
     console.error("swish-status exception:", err);
-    return res.status(200).json({ status: "PAID", message: err.message });
+    return res.status(200).json({ status: "CREATED", message: err.message });
   }
 }

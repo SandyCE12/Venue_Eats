@@ -43,14 +43,22 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
     orders,
     customerName,
     setCustomerName,
+    user,
+    handleSignIn,
   } = useApp();
 
   const [orderNotes, setOrderNotes] = useState<string>("");
   const [diningOption, setDiningOption] = useState<"dine-in" | "takeaway">("dine-in");
   const [tableInput, setTableInput] = useState<string>(activeTable || "");
   const [isEditingTable, setIsEditingTable] = useState<boolean>(false);
-  const [paymentMode, setPaymentMode] = useState<"swish" | "card" | "apple">("swish");
-  const [showMethodSelector, setShowMethodSelector] = useState<boolean>(false);
+  const [showSignInPrompt, setShowSignInPrompt] = useState<boolean>(false);
+  const [isSigningIn, setIsSigningIn] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (user && user.displayName && !customerName.trim()) {
+      setCustomerName(user.displayName);
+    }
+  }, [user]);
 
   if (!isOpen) return null;
 
@@ -428,14 +436,21 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
         {cartEntries.length > 0 && (
           <div className="p-4 sm:p-5 bg-zinc-50 border-t border-zinc-200 space-y-3">
 
-            {/* SINGLE PAY BUTTON */}
+            {/* SINGLE CHECKOUT BUTTON */}
             <div className="flex flex-col sm:flex-row items-center gap-2.5">
               <button
                 type="button"
-                onClick={() => setShowMethodSelector(true)}
+                onClick={() => {
+                  if (!user) {
+                    setShowSignInPrompt(true);
+                  } else {
+                    onClose();
+                    onProceedToSwish();
+                  }
+                }}
                 className="w-full sm:flex-1 bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-4 rounded-2xl transition-all shadow-lg shadow-orange-500/25 cursor-pointer flex items-center justify-center gap-2"
               >
-                <span>Betala • {getSubtotal()} SEK</span>
+                <span>Checkout • {getSubtotal()} SEK</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
               <button
@@ -443,168 +458,110 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
                 onClick={onClose}
                 className="w-full sm:w-auto bg-white hover:bg-zinc-100 text-zinc-700 font-display font-bold text-xs px-4 py-4 rounded-2xl border border-zinc-200 transition-colors cursor-pointer text-center"
               >
-                + Lägg till mer
+                + Add more items
               </button>
             </div>
 
             <div className="flex items-center justify-center gap-4 text-[10px] font-mono text-zinc-500">
               <span className="flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Säker betalning
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Secure Checkout
               </span>
               <span>•</span>
-              <span>Könummer: #{nextQueueNumber}</span>
+              <span>Queue Ticket: #{nextQueueNumber}</span>
               <span>•</span>
               <span>Direct Kitchen Push</span>
             </div>
           </div>
         )}
 
-        {/* PAYMENT METHOD SELECTOR OVERLAY */}
-        {showMethodSelector && (
-          <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center rounded-3xl">
-            <div className="w-full bg-white rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl">
-
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-display font-black text-lg text-zinc-900">Välj betalningssätt</h3>
-                  <p className="text-xs text-zinc-500 font-medium">Totalt att betala: {getSubtotal()} SEK</p>
+        {/* 1-CLICK GOOGLE SIGN-IN PROMPT OVERLAY */}
+        {showSignInPrompt && (
+          <div className="absolute inset-0 z-30 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center rounded-3xl p-3 sm:p-4 animate-fadeIn">
+            <div 
+              className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-7 space-y-5 shadow-2xl text-center border border-zinc-200 animate-slideUp text-left"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-12 h-12 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center shadow-xs">
+                  {/* Google G Icon */}
+                  <svg className="w-6 h-6" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowMethodSelector(false)}
-                  className="text-zinc-400 hover:text-zinc-900 p-2 rounded-xl hover:bg-zinc-100 transition-colors cursor-pointer"
+                  onClick={() => setShowSignInPrompt(false)}
+                  className="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* SWISH OPTION */}
-              <div
-                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
-                  paymentMode === "swish"
-                    ? "border-sky-400 bg-sky-50"
-                    : "border-zinc-200 hover:border-zinc-300 bg-white"
-                }`}
-                onClick={() => setPaymentMode("swish")}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                    paymentMode === "swish" ? "bg-sky-500 text-white" : "bg-zinc-100 text-zinc-500"
-                  }`}>
-                    <Smartphone className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-display font-black text-sm text-zinc-900">Swish</p>
-                    <p className="text-[10px] text-zinc-500 font-medium">Snabbast — betala direkt i Swish-appen</p>
-                  </div>
-                  {paymentMode === "swish" && (
-                    <div className="w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Name input — only when Swish is selected */}
-                {paymentMode === "swish" && (
-                  <div
-                    className="mt-3 pt-3 border-t border-sky-200 space-y-1"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider font-mono">
-                      Namn på biljetten (för upphämtning)
-                    </label>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Ditt förnamn..."
-                      className="w-full bg-white border border-sky-200 rounded-xl px-3 py-2.5 text-sm font-bold text-zinc-900 focus:outline-none focus:border-sky-400 transition-colors"
-                      autoFocus
-                    />
-                  </div>
-                )}
+              <div className="space-y-1.5 text-left">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200/80">
+                  Step 1 of 2: Sign In
+                </span>
+                <h3 className="font-display font-black text-lg text-zinc-900 leading-snug">
+                  Sign in to complete your order
+                </h3>
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Sign in with one click via Google to link your order, track kitchen preparation live, and receive pickup alerts.
+                </p>
               </div>
 
-              {/* CARD OPTION */}
-              <div
-                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
-                  paymentMode === "card"
-                    ? "border-zinc-800 bg-zinc-50"
-                    : "border-zinc-200 hover:border-zinc-300 bg-white"
-                }`}
-                onClick={() => setPaymentMode("card")}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                    paymentMode === "card" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
-                  }`}>
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-display font-black text-sm text-zinc-900">Kortbetalning</p>
-                    <p className="text-[10px] text-zinc-500 font-medium">Visa, Mastercard, Amex</p>
-                  </div>
-                  {paymentMode === "card" && (
-                    <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* APPLE PAY OPTION */}
-              <div
-                className={`border-2 rounded-2xl p-3.5 cursor-pointer transition-all ${
-                  paymentMode === "apple"
-                    ? "border-zinc-800 bg-zinc-50"
-                    : "border-zinc-200 hover:border-zinc-300 bg-white"
-                }`}
-                onClick={() => setPaymentMode("apple")}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                    paymentMode === "apple" ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-500"
-                  }`}>
-                    <Wallet className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-display font-black text-sm text-zinc-900">Apple Pay</p>
-                    <p className="text-[10px] text-zinc-500 font-medium">Betala snabbt med Face ID</p>
-                  </div>
-                  {paymentMode === "apple" && (
-                    <div className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center shrink-0">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* CONFIRM PAYMENT BUTTON */}
+              {/* One-Click Google Sign-in CTA */}
               <button
                 type="button"
-                onClick={() => {
-                  setShowMethodSelector(false);
-                  onClose();
-                  onProceedToSwish();
+                disabled={isSigningIn}
+                onClick={async () => {
+                  try {
+                    setIsSigningIn(true);
+                    const loggedInUser = await handleSignIn();
+                    if (loggedInUser?.displayName && !customerName.trim()) {
+                      setCustomerName(loggedInUser.displayName);
+                    }
+                    setShowSignInPrompt(false);
+                    onClose();
+                    onProceedToSwish();
+                  } catch (err: any) {
+                    console.error("Google sign-in in cart error:", err);
+                  } finally {
+                    setIsSigningIn(false);
+                  }
                 }}
-                className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.99] text-white font-display font-black text-sm py-4 rounded-2xl transition-all shadow-lg shadow-orange-500/25 cursor-pointer flex items-center justify-center gap-2"
+                className="w-full bg-white hover:bg-zinc-50 border-2 border-zinc-200 hover:border-zinc-300 text-zinc-850 font-bold py-3.5 px-4 rounded-2xl flex items-center justify-center gap-3 shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-[0.98]"
               >
-                {paymentMode === "swish" && <Smartphone className="w-4 h-4" />}
-                {paymentMode === "card" && <CreditCard className="w-4 h-4" />}
-                {paymentMode === "apple" && <Wallet className="w-4 h-4" />}
-                <span>
-                  {paymentMode === "swish"
-                    ? "Fortsätt med Swish"
-                    : paymentMode === "card"
-                    ? "Fortsätt med Kort"
-                    : "Fortsätt med Apple Pay"}{" "}
-                  • {getSubtotal()} SEK
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                </svg>
+                <span className="text-sm font-display font-black">
+                  {isSigningIn ? "Signing in with Google..." : "Continue with Google"}
                 </span>
               </button>
+
+              <div className="text-center pt-1 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSignInPrompt(false);
+                    onClose();
+                    onProceedToSwish();
+                  }}
+                  className="text-xs text-zinc-400 hover:text-zinc-600 font-semibold underline cursor-pointer"
+                >
+                  Or continue as guest
+                </button>
+              </div>
             </div>
           </div>
         )}
+
 
       </div>
     </div>,

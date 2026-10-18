@@ -131,12 +131,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       orderId: String(orderId),
       amount: parseFloat(amount).toFixed(2),
       createdAt: Date.now(),
-      status: "PAID",
+      status: "CREATED",
     });
 
-    const token = `sim_tok_${instructionUUID.slice(0, 16)}`;
-    const appUrl = process.env.APP_URL || "https://venue-eats.vercel.app";
-    const deepLink = `swish://paymentrequest?token=${token}&callbackurl=${encodeURIComponent(appUrl)}`;
+    const cleanPayee = String(req.body?.payeeNumber || merchantNumber || "1239182736").replace(/[\s\-\+]/g, "");
+    const nativePayload = {
+      version: 1,
+      payee: { value: cleanPayee },
+      amount: { value: parseFloat(amount) },
+      message: { value: String(message || "VenueEat Beställning").slice(0, 50) }
+    };
+    const deepLink = `swish://payment?data=${encodeURIComponent(JSON.stringify(nativePayload))}`;
 
     return res.status(200).json({
       paymentId: instructionUUID,

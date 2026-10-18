@@ -111,6 +111,8 @@ export const AttendeePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [showSwishFlow, setShowSwishFlow] = useState<boolean>(false);
   const [showVendorJoinModal, setShowVendorJoinModal] = useState<boolean>(false);
+  const [checkoutPaymentMode, setCheckoutPaymentMode] = useState<"swish" | "card" | "applepay">("swish");
+  const [customerSwishNumber, setCustomerSwishNumber] = useState<string>(() => localStorage.getItem("venueeat_customer_swish") || "");
 
   // Mock Notification Toggle & Simulation States
   const [mockNotificationsEnabled, setMockNotificationsEnabled] = useState<boolean>(() => {
@@ -1313,6 +1315,9 @@ export const AttendeePage: React.FC = () => {
         vendorSwishNumber={activeVendor?.swishNumber || "123 918 27 36"}
         customerName={customerName}
         onCustomerNameChange={setCustomerName}
+        customerSwishNumber={customerSwishNumber}
+        onCustomerSwishNumberChange={setCustomerSwishNumber}
+        initialPaymentMethod={checkoutPaymentMode}
         onPaymentSuccess={async (custName, vendorPaid, platformPaid, method) => {
           const finalTotal = getCartTotal() || (Number(vendorPaid || 0) + Number(platformPaid || 0));
           const targetVendor = activeVendor || vendors[0];
