@@ -23,6 +23,7 @@ import {
   openSwishApp,
   isMobileDevice,
   generateOrderRef,
+  getSwishQrCodeUrl,
 } from "../lib/swish";
 
 interface SwishPaymentGatewayProps {
@@ -35,6 +36,9 @@ interface SwishPaymentGatewayProps {
   onCustomerNameChange: (name: string) => void;
   onPaymentSuccess: (finalCustomerName: string, vendorSwishPaid: number, platformSwishPaid: number, paymentMethod?: string) => void;
   nextQueueNumber: number;
+  initialPaymentMethod?: "swish" | "card" | "applepay";
+  customerSwishNumber?: string;
+  onCustomerSwishNumberChange?: (num: string) => void;
 }
 
 type PaymentStep = "details" | "bankid" | "signing" | "success";
@@ -49,10 +53,15 @@ export default function SwishPaymentGateway({
   customerName,
   onCustomerNameChange,
   onPaymentSuccess,
-  nextQueueNumber
+  nextQueueNumber,
+  initialPaymentMethod = "swish",
+  customerSwishNumber = "",
+  onCustomerSwishNumberChange,
 }: SwishPaymentGatewayProps) {
   const [step, setStep] = useState<PaymentStep>("details");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("swish");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialPaymentMethod || "swish");
+  const [swishPhone, setSwishPhone] = useState<string>(customerSwishNumber || localStorage.getItem("venueeat_customer_swish") || "");
+  const [swishQrUrl, setSwishQrUrl] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pin, setPin] = useState<string>("");
   const [confetti, setConfetti] = useState<{ id: number; x: number; y: number; color: string; size: number; delay: number }[]>([]);
@@ -161,7 +170,21 @@ export default function SwishPaymentGateway({
 
   const handleOpenBankID = async () => {
     if (!customerName.trim()) {
-      onCustomerNameChange("Guest Guestson");
+      onCustomerNameChange("Guest");
+    }
+
+    const cleanPhone = swishPhone.replace(/[\s\-\(\)\+]/g, "");
+    // Valid Swedish Swish formats: 10 digits starting with 07 or 123, or 11 digits starting with 467
+    const isValidSwedishSwish = /^(07\d{8}|467\d{8}|123\d{7})$/.test(cleanPhone);
+
+    if (!cleanPhone || !isValidSwedishSwish) {
+      setValidationError("Please enter a valid 10-digit Swedish Swish number (e.g. 070 123 45 67)");
+      return;
+    }
+
+    localStorage.setItem("venueeat_customer_swish", swishPhone.trim());
+    if (onCustomerSwishNumberChange) {
+      onCustomerSwishNumberChange(swishPhone.trim());
     }
 
     setValidationError(null);
@@ -170,22 +193,28 @@ export default function SwishPaymentGateway({
 
     try {
       const orderId = generateOrderRef();
+      const orderMessage = `VenueEat - ${vendorName} #${nextQueueNumber}`;
       const result = await initiateSwishPayment(
         totalAmount,
         orderId,
-        `VenueEat - ${vendorName}`
+        orderMessage,
+        vendorSwishNumber
       );
 
       setSwishPaymentId(result.paymentId);
       setSwishDeepLink(result.deepLink);
+      setSwishQrUrl(getSwishQrCodeUrl(result.deepLink, 240));
 
-      const mobile = isMobileDevice();
+      const mobile = isMobileDevice() || (typeof window !== "undefined" && window.innerWidth <= 768);
       setIsDesktopUser(!mobile);
 
-      // Show the waiting screen FIRST — user taps "Open Swish" button explicitly
-      // Auto-navigating causes a blank white screen on iOS Safari
       setStep("bankid");
       setSwishLoading(false);
+
+      // On mobile devices, immediately open the native Swish app
+      if (mobile && result.deepLink) {
+        openSwishApp(result.deepLink);
+      }
 
       // Start polling for payment confirmation every 2 seconds
       pollIntervalRef.current = setInterval(async () => {
@@ -209,7 +238,7 @@ export default function SwishPaymentGateway({
           ) {
             clearInterval(pollIntervalRef.current!);
             pollIntervalRef.current = null;
-            setSwishError(`Betalning misslyckades: ${statusResult.status}. Försök igen.`);
+            setSwishError(`Payment failed: ${statusResult.status}. Please try again.`);
             setStep("details");
           }
         } catch {
@@ -219,7 +248,7 @@ export default function SwishPaymentGateway({
 
     } catch (err: any) {
       setSwishLoading(false);
-      setSwishError(err.message || "Swish-betalning misslyckades. Försök igen.");
+      setSwishError(err.message || "Swish payment failed. Please try again.");
     }
   };
 
@@ -318,7 +347,7 @@ export default function SwishPaymentGateway({
                   💳
                 </div>
                 <div>
-                  <h4 className="font-display font-black text-xs text-zinc-950 uppercase tracking-tight">Kassa & Betalning</h4>
+                  <h4 className="font-display font-black text-xs text-zinc-950 uppercase tracking-tight">Checkout & Payment</h4>
                   <p className="text-[8px] text-zinc-400 font-bold uppercase font-mono">Real-time Split Routing</p>
                 </div>
               </div>
@@ -354,7 +383,7 @@ export default function SwishPaymentGateway({
                 }`}
               >
                 <CreditCard className="w-3.5 h-3.5 text-orange-500" />
-                <span>Kort (Card)</span>
+                <span>Credit Card</span>
               </button>
 
               <button
@@ -373,7 +402,7 @@ export default function SwishPaymentGateway({
             {/* Split Payout Breakdown Panel */}
             <div className="bg-zinc-50 rounded-2xl p-3.5 border border-zinc-150/80 space-y-2.5 shadow-xs">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-zinc-400 font-extrabold uppercase text-[8px] font-mono tracking-wider">Fördelad Transaktion</span>
+                <span className="text-zinc-400 font-extrabold uppercase text-[8px] font-mono tracking-wider">Split Transaction Routing</span>
                 <span className="bg-emerald-50 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-full border border-emerald-100 uppercase tracking-wide flex items-center gap-1">
                   <ArrowRightLeft className="w-2.5 h-2.5" /> Direct Merchant Routing
                 </span>
@@ -382,12 +411,12 @@ export default function SwishPaymentGateway({
               {/* Destination 1: Vendor */}
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
-                  <span className="text-[8px] text-zinc-400 font-bold uppercase font-mono">Matstånd (Vendor account)</span>
+                  <span className="text-[8px] text-zinc-400 font-bold uppercase font-mono">Food Stall (Vendor Account)</span>
                   <p className="font-display font-black text-xs text-zinc-800 truncate max-w-[150px]">{vendorName}</p>
                   <p className="text-[9px] text-zinc-500 font-mono font-medium">{vendorSwishNumber}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[13px] font-black font-mono text-zinc-950">{vendorShare.toFixed(2)} kr</span>
+                  <span className="text-[13px] font-black font-mono text-zinc-950">{vendorShare.toFixed(2)} SEK</span>
                   <span className="text-[8px] text-emerald-600 font-bold uppercase block">100% Direct</span>
                 </div>
               </div>
@@ -395,20 +424,20 @@ export default function SwishPaymentGateway({
               {/* Destination 2: VenueEat Platform Fee */}
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
-                  <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Serviceavgift (VenueEat Split)</span>
-                  <p className="font-display font-black text-xs text-zinc-800">Service Fees</p>
+                  <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Platform Service Fee (VenueEat)</span>
+                  <p className="font-display font-black text-xs text-zinc-800">VenueEat Platform</p>
                   <p className="text-[9px] text-zinc-500 font-mono font-medium">123 456 78 90</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[13px] font-black font-mono text-zinc-950">{platformFee.toFixed(2)} kr</span>
+                  <span className="text-[13px] font-black font-mono text-zinc-950">{platformFee.toFixed(2)} SEK</span>
                   <span className="text-[8px] text-orange-600 font-bold uppercase block">3.5% Service Fee</span>
                 </div>
               </div>
 
               {/* Total Summary */}
               <div className="border-t border-zinc-200/60 pt-2 flex justify-between items-end">
-                <span className="text-zinc-500 font-bold uppercase text-[9px] font-mono leading-none">Total Belopp</span>
-                <span className="font-display font-black text-lg text-orange-600 font-mono tracking-tight leading-none">{totalAmount.toFixed(2)} kr</span>
+                <span className="text-zinc-500 font-bold uppercase text-[9px] font-mono leading-none">Total Amount</span>
+                <span className="font-display font-black text-lg text-orange-600 font-mono tracking-tight leading-none">{totalAmount.toFixed(2)} SEK</span>
               </div>
             </div>
 
@@ -418,29 +447,55 @@ export default function SwishPaymentGateway({
                 <div className="space-y-1">
                   <label className="text-[9px] text-zinc-400 font-bold uppercase flex items-center gap-1 font-mono">
                     <User className="w-3 h-3 text-zinc-400" />
-                    Namn på Biljettsedel (Ticket Name)
+                    Name on Food Ticket (Pickup)
                   </label>
                   <input
                     type="text"
                     value={customerName}
                     onChange={(e) => onCustomerNameChange(e.target.value)}
                     className="w-full bg-white border-2 border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-850 focus:outline-none focus:border-sky-500 font-bold transition-all"
-                    placeholder="Skriv ditt förnamn..."
+                    placeholder="Enter your name..."
                     id="swish-input-customer-name"
                   />
                   <p className="text-[8.5px] text-zinc-400 font-semibold leading-relaxed">
-                    Detta namn ropas ut vid pickup-luckan när din mat är redo.
+                    This name will be called out at the pickup counter when your food is ready.
                   </p>
                 </div>
 
-
+                <div className="space-y-1">
+                  <label className="text-[9px] text-zinc-400 font-bold uppercase flex items-center gap-1 font-mono">
+                    <Smartphone className="w-3 h-3 text-sky-500" />
+                    Your Swish Number / Mobile
+                  </label>
+                  <input
+                    type="tel"
+                    value={swishPhone}
+                    onChange={(e) => {
+                      setSwishPhone(e.target.value);
+                      setValidationError(null);
+                    }}
+                    className="w-full bg-white border-2 border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-850 focus:outline-none focus:border-sky-500 font-mono font-bold transition-all"
+                    placeholder="070 123 45 67"
+                    id="swish-input-customer-phone"
+                  />
+                  <p className="text-[8.5px] text-zinc-400 font-semibold leading-relaxed">
+                    The Swish app will open on your phone with a pre-filled payment request to {vendorName}.
+                  </p>
+                </div>
 
                 <div className="bg-sky-50 border border-sky-100 rounded-xl p-2.5 flex gap-2 items-start">
                   <Shield className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
                   <p className="text-[8.5px] text-sky-800/80 font-bold leading-relaxed">
-                    Betalningen delas i realtid i Swish-nätverket. Säkert via Mobilt BankID.
+                    Split payment routed securely in real-time. Verified by BankID.
                   </p>
                 </div>
+
+                {validationError && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 flex gap-2 items-start animate-fadeIn">
+                    <X className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-rose-700 font-extrabold leading-relaxed">⚠️ {validationError}</p>
+                  </div>
+                )}
 
                 {swishError && (
                   <div className="bg-rose-50 border border-rose-200 rounded-xl p-2.5 flex gap-2 items-start">
@@ -451,18 +506,18 @@ export default function SwishPaymentGateway({
 
                 <button
                   onClick={handleOpenBankID}
-                  disabled={!customerName.trim() || swishLoading}
+                  disabled={swishLoading}
                   className={`w-full font-display font-black py-3 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer active:scale-98 ${
-                    customerName.trim() && !swishLoading
+                    !swishLoading
                       ? "bg-sky-500 hover:bg-sky-600 border-t border-sky-400 text-white" 
                       : "bg-zinc-100 border border-zinc-200 text-zinc-400 cursor-not-allowed"
                   }`}
                   id="btn-swish-pay"
                 >
                   {swishLoading ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Startar Swish...</>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Starting Swish...</>
                   ) : (
-                    <><Fingerprint className="w-4 h-4 animate-pulse" /> Betala med Swish</>
+                    <><Fingerprint className="w-4 h-4 animate-pulse" /> Pay with Swish</>
                   )}
                 </button>
               </div>
@@ -629,8 +684,8 @@ export default function SwishPaymentGateway({
                   <div className="w-4 h-4 bg-zinc-900 rounded-full flex items-center justify-center text-[9px] font-black text-white italic tracking-tighter">S</div>
                 </div>
                 <div>
-                  <h4 className="font-display font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Swish Handel</h4>
-                  <p className="text-[8px] text-zinc-400 font-bold font-mono">SÄKER BETALNING</p>
+                  <h4 className="font-display font-extrabold text-xs text-zinc-100 tracking-wide uppercase">Swish Merchant Payment</h4>
+                  <p className="text-[8px] text-zinc-400 font-bold font-mono">SECURE PAYMENT</p>
                 </div>
               </div>
               <button
@@ -644,24 +699,24 @@ export default function SwishPaymentGateway({
                 className="text-[10px] font-bold text-zinc-400 hover:text-white hover:bg-zinc-800 px-2.5 py-1 rounded-lg transition-all"
                 id="btn-cancel-bankid"
               >
-                Avbryt
+                Cancel
               </button>
             </div>
 
             {/* Payment breakdown */}
             <div className="bg-zinc-950 rounded-2xl p-4 border border-zinc-800 text-center space-y-2 shadow-inner">
-              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider font-mono">Betalningsuppdelning</p>
+              <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider font-mono">Payment Breakdown</p>
               <div className="pt-2 border-t border-zinc-900 space-y-1.5 text-left">
                 <div className="flex justify-between items-center text-[10px] bg-zinc-900/50 p-1.5 rounded-lg border border-zinc-850">
                   <span className="text-zinc-300 font-medium truncate max-w-[120px]">🍔 {vendorName}</span>
                   <span className="font-mono text-zinc-200 font-bold">{vendorShare.toFixed(2)} SEK</span>
                 </div>
                 <div className="flex justify-between items-center text-[10px] bg-zinc-900/50 p-1.5 rounded-lg border border-zinc-850">
-                  <span className="text-zinc-300 font-medium">👑 VenueEat Serviceavgift</span>
+                  <span className="text-zinc-300 font-medium">👑 VenueEat Service Fee</span>
                   <span className="font-mono text-zinc-200 font-bold">{platformFee.toFixed(2)} SEK</span>
                 </div>
                 <div className="pt-1 text-center font-mono text-[11px] font-black text-white">
-                  Totalt: {totalAmount.toFixed(2)} SEK
+                  Total: {totalAmount.toFixed(2)} SEK
                 </div>
               </div>
             </div>
@@ -670,14 +725,24 @@ export default function SwishPaymentGateway({
             <div className="flex flex-col items-center gap-4 py-2">
               {isDesktopUser ? (
                 <div className="w-full space-y-3">
-                  <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 text-center space-y-2">
-                    <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center mx-auto text-sky-400">
-                      <Fingerprint className="w-6 h-6 animate-pulse" />
-                    </div>
+                  <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 text-center space-y-3">
+                    {swishQrUrl ? (
+                      <div className="bg-white p-3.5 rounded-2xl shadow-lg inline-block mx-auto border-2 border-sky-400/80">
+                        <img src={swishQrUrl} alt="Swish QR Code" className="w-44 h-44 mx-auto rounded-xl" />
+                        <div className="mt-2 flex items-center justify-center gap-1.5 text-zinc-900 text-[10px] font-bold font-mono">
+                          <Smartphone className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Scan with Swish App</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center mx-auto text-sky-400">
+                        <Fingerprint className="w-6 h-6 animate-pulse" />
+                      </div>
+                    )}
                     <div>
-                      <h5 className="font-display font-black text-sm text-white">Mobilt BankID Säkerhetsbegäran</h5>
+                      <h5 className="font-display font-black text-sm text-white">Pay with Swish</h5>
                       <p className="text-[10px] text-zinc-400 font-medium">
-                        Betalningsuppdrag redo för signering ({totalAmount.toFixed(2)} SEK till {vendorName})
+                        Scan the QR code above with the Swish app or click below to simulate approval ({totalAmount.toFixed(2)} SEK to {vendorName})
                       </p>
                     </div>
                   </div>
@@ -689,34 +754,35 @@ export default function SwishPaymentGateway({
                     className="w-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-display font-black py-3.5 rounded-2xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
                   >
                     <Fingerprint className="w-4 h-4" />
-                    <span>Godkänn & Signera med BankID</span>
+                    <span>Approve & Sign with BankID (Test Simulation)</span>
                   </button>
 
                   <div className="flex items-center gap-2 justify-center">
                     <Loader2 className="w-3 h-3 text-sky-400 animate-spin" />
                     <p className="text-[10px] text-zinc-400 font-mono">
-                      Väntar på signering i BankID...
+                      Waiting for Swish payment confirmation...
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="w-full space-y-3">
                   <div className="text-center space-y-1">
-                    <p className="text-xs font-bold text-zinc-300">Betalningsförfrågan skapad ✓</p>
+                    <p className="text-xs font-bold text-zinc-300">Payment request created ✓</p>
                     <p className="text-[9px] text-zinc-500 font-semibold">
-                      Tryck på knappen nedan för att öppna Swish-appen
+                      Swish app launched. If it did not open automatically, tap below:
                     </p>
                   </div>
 
-                  {/* Primary CTA — open Swish via native link (no blank screen) */}
+                  {/* Primary CTA — open Swish via native link */}
                   {swishDeepLink && (
                     <a
                       href={swishDeepLink}
+                      onClick={() => openSwishApp(swishDeepLink)}
                       className="w-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-display font-black py-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2.5 text-sm cursor-pointer"
                       style={{ textDecoration: "none" }}
                     >
                       <Smartphone className="w-5 h-5" />
-                      Öppna Swish-appen
+                      Open Swish App
                     </a>
                   )}
 
@@ -727,19 +793,19 @@ export default function SwishPaymentGateway({
                     className="w-full bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
                   >
                     <Fingerprint className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Signera direkt med Mobilt BankID</span>
+                    <span>Approve & Sign with BankID (Test Simulation)</span>
                   </button>
 
                   <div className="flex items-center gap-2 justify-center">
                     <Loader2 className="w-3.5 h-3.5 text-zinc-600 animate-spin" />
                     <p className="text-[9px] text-zinc-600 font-mono">
-                      Väntar på betalningsbekräftelse...
+                      Waiting for payment confirmation...
                     </p>
                   </div>
 
                   <p className="text-[8.5px] text-zinc-600 text-center font-semibold leading-relaxed">
-                    Efter att du godkänt betalningen i Swish — kom tillbaka hit.<br />
-                    Sidan uppdateras automatiskt.
+                    After approving payment in Swish, return here.<br />
+                    This page updates automatically.
                   </p>
                 </div>
               )}
@@ -748,7 +814,7 @@ export default function SwishPaymentGateway({
             <div className="bg-sky-950/50 border border-sky-800/40 rounded-xl p-2.5 flex gap-2 items-start">
               <Shield className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
               <p className="text-[8.5px] text-sky-300/80 font-bold leading-relaxed">
-                Ingen PIN-kod behövs här. Betalningen godkänns direkt i Swish-appen eller med Mobilt BankID.
+                No PIN code needed here. Payment is authorized directly in the Swish app or Mobile BankID.
               </p>
             </div>
           </motion.div>
@@ -774,12 +840,12 @@ export default function SwishPaymentGateway({
             </div>
 
             <div className="text-center space-y-1">
-              <p className="text-xs font-bold tracking-tight text-zinc-200">Verifierar säkerhetskod...</p>
-              <p className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider font-mono">Signerar betalningsuppdraget</p>
+              <p className="text-xs font-bold tracking-tight text-zinc-200">Verifying authorization...</p>
+              <p className="text-[9px] text-zinc-500 font-semibold uppercase tracking-wider font-mono">Signing payment order</p>
             </div>
 
             <div className="bg-zinc-950/60 px-3 py-2 rounded-full border border-zinc-800 text-[9px] text-zinc-400 font-bold font-mono">
-              Avvakta svar från Swish Bank Gateway
+              Awaiting response from Swish Bank Gateway
             </div>
           </motion.div>
         )}
@@ -845,10 +911,10 @@ export default function SwishPaymentGateway({
 
               <div className="space-y-0.5">
                 <h3 className="font-display font-black text-lg tracking-tight italic text-white">
-                  Betalning godkänd!
+                  Payment Approved!
                 </h3>
                 <p className="text-[10px] text-emerald-100 font-semibold uppercase tracking-wider font-mono">
-                  Mottagarna har krediterats direkt i realtid
+                  Recipients credited directly in real-time
                 </p>
               </div>
 
@@ -860,29 +926,29 @@ export default function SwishPaymentGateway({
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 space-y-3 text-left shadow-inner text-xs"
               >
                 <div className="flex justify-between items-center text-[9px] border-b border-white/10 pb-1.5 font-mono">
-                  <span className="text-emerald-100 font-bold uppercase tracking-wider">{paymentMethod === "card" ? "Card / Stripe" : paymentMethod === "applepay" ? "Apple Pay" : "Swish Split"} Transaktionskvitto</span>
+                  <span className="text-emerald-100 font-bold uppercase tracking-wider">{paymentMethod === "card" ? "Card / Stripe" : paymentMethod === "applepay" ? "Apple Pay" : "Swish Split"} Transaction Receipt</span>
                   <span className="text-white/80 font-bold">#PAY-{paymentMethod.toUpperCase().slice(0, 3)}-{Math.floor(Math.random() * 900000 + 100000)}</span>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex justify-between items-start">
-                    <span className="text-emerald-100 font-semibold font-sans">Kund (Ticket):</span>
+                    <span className="text-emerald-100 font-semibold font-sans">Customer (Ticket):</span>
                     <span className="font-sans font-bold text-white text-right max-w-[140px] truncate">{customerName}</span>
                   </div>
 
                   <div className="flex justify-between items-start">
-                    <span className="text-emerald-100 font-semibold font-sans">Tidpunkt:</span>
+                    <span className="text-emerald-100 font-semibold font-sans">Time:</span>
                     <span className="font-mono font-bold text-white">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                   </div>
 
                   {/* Transfer 1 Receipt */}
                   <div className="border-t border-white/10 pt-2 space-y-1">
                     <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-emerald-100 font-bold uppercase tracking-wider font-mono">Överföring 1 (Vendor Direct):</span>
-                      <span className="font-mono font-black text-white">{vendorShare.toFixed(2)} kr</span>
+                      <span className="text-emerald-100 font-bold uppercase tracking-wider font-mono">Transfer 1 (Vendor Direct):</span>
+                      <span className="font-mono font-black text-white">{vendorShare.toFixed(2)} SEK</span>
                     </div>
                     <div className="flex justify-between text-[9px] text-emerald-200">
-                      <span>Mottagare: {vendorName}</span>
+                      <span>Recipient: {vendorName}</span>
                       <span>Swish: {vendorSwishNumber}</span>
                     </div>
                   </div>
@@ -890,24 +956,24 @@ export default function SwishPaymentGateway({
                   {/* Transfer 2 Receipt */}
                   <div className="border-t border-white/10 pt-2 space-y-1">
                     <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-emerald-100 font-bold uppercase tracking-wider font-mono">Överföring 2 (VenueEat Fee):</span>
-                      <span className="font-mono font-black text-white">{platformFee.toFixed(2)} kr</span>
+                      <span className="text-emerald-100 font-bold uppercase tracking-wider font-mono">Transfer 2 (VenueEat Platform Fee):</span>
+                      <span className="font-mono font-black text-white">{platformFee.toFixed(2)} SEK</span>
                     </div>
                     <div className="flex justify-between text-[9px] text-emerald-200">
-                      <span>Mottagare: VenueEat Platform</span>
+                      <span>Recipient: VenueEat Platform</span>
                       <span>Swish: 123 456 78 90</span>
                     </div>
                   </div>
 
                   <div className="border-t border-white/15 pt-2 flex justify-between items-end">
                     <span className="text-emerald-600 font-black bg-white text-[9px] px-2 py-0.5 rounded-md uppercase font-mono shadow-xs">Total</span>
-                    <span className="font-display font-black text-lg text-white font-mono tracking-tight">{totalAmount.toFixed(2)} kr</span>
+                    <span className="font-display font-black text-lg text-white font-mono tracking-tight">{totalAmount.toFixed(2)} SEK</span>
                   </div>
                 </div>
               </motion.div>
 
               <div className="bg-emerald-700/40 rounded-xl p-2.5 text-[9px] text-emerald-100 leading-relaxed text-left font-medium border border-emerald-500/20">
-                ✔️ Köbiljett <b>#{nextQueueNumber}</b> har skapats. En push-notis skickas när köket godkänt ordern. Du kan nu spåra din order i realtid i Live Ticket vyn.
+                ✔️ Order Ticket <b>#{nextQueueNumber}</b> created. You will receive an alert when the kitchen accepts and prepares your order. Track live status anytime in Live Orders.
               </div>
             </div>
 
@@ -918,7 +984,7 @@ export default function SwishPaymentGateway({
               id="btn-swish-done"
             >
               <Check className="w-4 h-4 stroke-[3px]" />
-              Klart (Done)
+              Done • View Order Ticket
             </button>
           </motion.div>
         )}
