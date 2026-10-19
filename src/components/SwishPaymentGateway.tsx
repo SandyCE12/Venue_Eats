@@ -24,6 +24,7 @@ import {
   isMobileDevice,
   generateOrderRef,
   getSwishQrCodeUrl,
+  UNIVERSAL_SWISH_NUMBER,
 } from "../lib/swish";
 
 interface SwishPaymentGatewayProps {
@@ -49,7 +50,7 @@ export default function SwishPaymentGateway({
   onClose,
   amount,
   vendorName,
-  vendorSwishNumber = "123 918 27 36",
+  vendorSwishNumber = UNIVERSAL_SWISH_NUMBER,
   customerName,
   onCustomerNameChange,
   onPaymentSuccess,
@@ -408,12 +409,12 @@ export default function SwishPaymentGateway({
                 </span>
               </div>
 
-              {/* Destination 1: Vendor */}
+              {/* Destination 1: Vendor Share */}
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
-                  <span className="text-[8px] text-zinc-400 font-bold uppercase font-mono">Food Stall (Vendor Account)</span>
+                  <span className="text-[8px] text-zinc-400 font-bold uppercase font-mono">Food Stall (Vendor Share)</span>
                   <p className="font-display font-black text-xs text-zinc-800 truncate max-w-[150px]">{vendorName}</p>
-                  <p className="text-[9px] text-zinc-500 font-mono font-medium">{vendorSwishNumber}</p>
+                  <p className="text-[9px] text-emerald-600 font-mono font-medium">Direct Stall Settlement</p>
                 </div>
                 <div className="text-right">
                   <span className="text-[13px] font-black font-mono text-zinc-950">{vendorShare.toFixed(2)} SEK</span>
@@ -421,12 +422,12 @@ export default function SwishPaymentGateway({
                 </div>
               </div>
 
-              {/* Destination 2: VenueEat Platform Fee */}
+              {/* Destination 2: Universal Swish Recipient */}
               <div className="bg-white p-2.5 rounded-xl border border-zinc-100 flex justify-between items-center">
                 <div className="space-y-0.5">
-                  <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Platform Service Fee (VenueEat)</span>
+                  <span className="text-[8px] text-orange-500 font-bold uppercase font-mono">Universal Swish Recipient</span>
                   <p className="font-display font-black text-xs text-zinc-800">VenueEat Platform</p>
-                  <p className="text-[9px] text-zinc-500 font-mono font-medium">123 456 78 90</p>
+                  <p className="text-[9px] text-zinc-500 font-mono font-medium">{vendorSwishNumber || UNIVERSAL_SWISH_NUMBER}</p>
                 </div>
                 <div className="text-right">
                   <span className="text-[13px] font-black font-mono text-zinc-950">{platformFee.toFixed(2)} SEK</span>

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { MenuItem, Vendor, ExtraOption } from "../types";
 import SwishPaymentGateway from "../components/SwishPaymentGateway";
+import { UNIVERSAL_SWISH_NUMBER } from "../lib/swish";
 import OrderStatusTracker from "../components/OrderStatusTracker";
 import EventMap from "../components/EventMap";
 import SupportChat from "../components/SupportChat";
@@ -1312,7 +1313,7 @@ export const AttendeePage: React.FC = () => {
         onClose={() => setShowSwishFlow(false)}
         amount={getCartTotal()}
         vendorName={activeVendor?.name || "Vendor"}
-        vendorSwishNumber={activeVendor?.swishNumber || "123 918 27 36"}
+        vendorSwishNumber={UNIVERSAL_SWISH_NUMBER}
         customerName={customerName}
         onCustomerNameChange={setCustomerName}
         customerSwishNumber={customerSwishNumber}
