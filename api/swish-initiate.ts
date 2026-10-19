@@ -134,7 +134,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       status: "CREATED",
     });
 
-    const cleanPayee = String(req.body?.payeeNumber || merchantNumber || "1239182736").replace(/[\s\-\+]/g, "");
+    const cleanPayee = String(req.body?.payeeNumber || merchantNumber || "1230197665").replace(/[\s\-\+]/g, "");
     const nativePayload = {
       version: 1,
       payee: { value: cleanPayee },

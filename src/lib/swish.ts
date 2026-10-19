@@ -7,16 +7,25 @@ export interface SwishPaymentResult {
 }
 
 /**
+ * Universal Swish Recipient:
+ * Central verified Swish account for all platform payments.
+ * Reads from VITE_UNIVERSAL_SWISH_NUMBER in .env if provided, or defaults to 1230197665.
+ */
+export const UNIVERSAL_SWISH_NUMBER: string =
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_UNIVERSAL_SWISH_NUMBER) ||
+  "1230197665";
+
+/**
  * Generates the universal native Swish URL scheme supported by the Swish mobile app on iOS and Android.
  * Format: swish://payment?data={"version":1,"payee":{"value":"..."},"amount":{"value":...},"message":{"value":"..."}}
  */
 export function buildNativeSwishDeepLink(
-  payeeNumber: string,
+  payeeNumber: string = UNIVERSAL_SWISH_NUMBER,
   amount: number,
   message: string
 ): string {
   // Strip spaces, dashes, and extra formatting
-  let cleanPayee = (payeeNumber || "123 918 27 36").replace(/[\s\-\+]/g, "");
+  let cleanPayee = (payeeNumber || UNIVERSAL_SWISH_NUMBER).replace(/[\s\-\+]/g, "");
 
   const payload = {
     version: 1,
@@ -45,7 +54,8 @@ export async function initiateSwishPayment(
   message: string,
   vendorSwishNumber?: string
 ): Promise<SwishPaymentResult> {
-  const nativeLink = buildNativeSwishDeepLink(vendorSwishNumber || "123 918 27 36", amount, message);
+  const targetPayee = vendorSwishNumber || UNIVERSAL_SWISH_NUMBER;
+  const nativeLink = buildNativeSwishDeepLink(targetPayee, amount, message);
 
   try {
     const response = await fetch("/api/swish-initiate", {
