@@ -7,6 +7,7 @@ import swishStatusHandler from "./api/swish-status";
 import swishCallbackHandler from "./api/swish-callback";
 import swishQrHandler from "./api/swish-qr";
 import sendEmailHandler from "./api/send-email";
+import notifyOrderReadyHandler from "./api/notify-order-ready";
 
 dotenv.config();
 
@@ -325,6 +326,11 @@ app.post("/api/swish-callback", (req, res) => {
 // API: Send Event Admin Email Invitation
 app.post("/api/send-email", (req, res) => {
   sendEmailHandler(req as any, res as any);
+});
+
+// API: Send FCM Background Food Ready Push Notification
+app.post("/api/notify-order-ready", (req, res) => {
+  notifyOrderReadyHandler(req as any, res as any);
 });
 
 // Mount Vite middleware for development or serve build folder in production

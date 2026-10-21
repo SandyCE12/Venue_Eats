@@ -15,6 +15,9 @@ coverage/
 *.csr
 swish_cert_base64.txt
 swish_key_base64.txt
+serviceAccountKey.json
+*firebase-adminsdk*.json
+firebase_service_account_base64.txt
 
 # Archives & IDEs
 *.zip
