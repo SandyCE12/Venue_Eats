@@ -16,7 +16,7 @@ export const RealAuthGate: React.FC<RealAuthGateProps> = ({
   portalRole,
   onSuccess
 }) => {
-  const { user, handleSignIn, vendors, managedEvents, setActiveEventId } = useApp();
+  const { user, handleSignIn, vendors, managedEvents, activeEventId, setActiveEventId } = useApp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

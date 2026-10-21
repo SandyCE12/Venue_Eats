@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import swishInitiateHandler from "./api/swish-initiate";
 import swishStatusHandler from "./api/swish-status";
 import swishCallbackHandler from "./api/swish-callback";
+import swishQrHandler from "./api/swish-qr";
 import sendEmailHandler from "./api/send-email";
 
 dotenv.config();
@@ -309,6 +310,11 @@ app.post("/api/swish-initiate", (req, res) => {
 // API: Swish Payment Status Polling
 app.get("/api/swish-status", (req, res) => {
   swishStatusHandler(req as any, res as any);
+});
+
+// API: Official Swish QR Code Generator
+app.get("/api/swish-qr", (req, res) => {
+  swishQrHandler(req as any, res as any);
 });
 
 // API: Swish Server Callback

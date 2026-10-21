@@ -38,15 +38,42 @@ export function buildNativeSwishDeepLink(
 }
 
 /**
- * Returns a high-res QR code URL that can be scanned by the Swish app on mobile
+ * Returns the official Getswish QR code URL recognized directly by the Swish mobile app camera.
+ * Can be called with either (payee, amount, message) or (deepLink).
  */
-export function getSwishQrCodeUrl(deepLink: string, size = 220): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=10&data=${encodeURIComponent(deepLink)}`;
+export function getSwishQrCodeUrl(
+  payeeOrDeepLink: string,
+  amount?: number,
+  message?: string
+): string {
+  if (typeof amount === "number") {
+    const cleanPayee = (payeeOrDeepLink || UNIVERSAL_SWISH_NUMBER).replace(/[\s\-\+]/g, "");
+    const formattedAmount = (Math.round(amount * 100) / 100).toFixed(2);
+    const cleanMessage = encodeURIComponent((message || "VenueEat Beställning").slice(0, 50));
+    return `/api/swish-qr?payee=${cleanPayee}&amount=${formattedAmount}&message=${cleanMessage}`;
+  }
+
+  // Parse deep link if provided
+  try {
+    if (payeeOrDeepLink.includes("data=")) {
+      const dataStr = decodeURIComponent(payeeOrDeepLink.split("data=")[1]);
+      const data = JSON.parse(dataStr);
+      const payee = (data?.payee?.value || UNIVERSAL_SWISH_NUMBER).replace(/[\s\-\+]/g, "");
+      const amt = Number(data?.amount?.value || 0).toFixed(2);
+      const msg = encodeURIComponent(String(data?.message?.value || "VenueEat Beställning").slice(0, 50));
+      return `/api/swish-qr?payee=${payee}&amount=${amt}&message=${msg}`;
+    }
+  } catch {
+    // fallback
+  }
+
+  const cleanPayee = (payeeOrDeepLink || UNIVERSAL_SWISH_NUMBER).replace(/[\s\-\+]/g, "");
+  return `/api/swish-qr?payee=${cleanPayee}&amount=0.00&message=VenueEat`;
 }
 
 /**
  * Calls the /api/swish-initiate function or falls back to native direct Swish deep link.
- * Guarantees that mobile Swish app opens with pre-filled payment details.
+ * Guarantees that mobile Swish app opens with pre-filled payment details and auto-redirect return URL.
  */
 export async function initiateSwishPayment(
   amount: number,
@@ -56,19 +83,25 @@ export async function initiateSwishPayment(
 ): Promise<SwishPaymentResult> {
   const targetPayee = vendorSwishNumber || UNIVERSAL_SWISH_NUMBER;
   const nativeLink = buildNativeSwishDeepLink(targetPayee, amount, message);
+  const currentUrl = typeof window !== "undefined" ? window.location.href : "https://venue-eats.vercel.app";
 
   try {
     const response = await fetch("/api/swish-initiate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount, orderId, message, payeeNumber: vendorSwishNumber }),
+      body: JSON.stringify({
+        amount,
+        orderId,
+        message,
+        payeeNumber: vendorSwishNumber,
+        returnUrl: currentUrl,
+      }),
     });
 
     if (response.ok) {
       const data = await response.json();
       if (data && data.paymentId) {
-        // If API returned a simulated session, use the native universal deep link so the real Swish app opens
-        const finalDeepLink = data.isSimulated ? nativeLink : (data.deepLink || nativeLink);
+        const finalDeepLink = data.deepLink || nativeLink;
         return {
           ...data,
           deepLink: finalDeepLink,
@@ -112,6 +145,7 @@ export async function checkSwishPaymentStatus(paymentId: string): Promise<{
 
   return { status: "CREATED", amount: "0.00" };
 }
+
 
 /**
  * Opens the Swish deep link.
