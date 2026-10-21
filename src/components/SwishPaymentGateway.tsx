@@ -79,6 +79,8 @@ export default function SwishPaymentGateway({
   const [swishPaymentId, setSwishPaymentId] = useState<string | null>(null);
   const [swishDeepLink, setSwishDeepLink] = useState<string | null>(null);
   const [isDesktopUser, setIsDesktopUser] = useState(false);
+  const [isVerifyingWithSwish, setIsVerifyingWithSwish] = useState(false);
+  const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync cardholder name when customerName changes
@@ -112,6 +114,8 @@ export default function SwishPaymentGateway({
       setStep("details");
       setPin("");
       setValidationError(null);
+      setVerifyNotice(null);
+      setIsVerifyingWithSwish(false);
     }
   }, [isOpen]);
 
@@ -204,7 +208,7 @@ export default function SwishPaymentGateway({
 
       setSwishPaymentId(result.paymentId);
       setSwishDeepLink(result.deepLink);
-      setSwishQrUrl(getSwishQrCodeUrl(result.deepLink, 240));
+      setSwishQrUrl(getSwishQrCodeUrl(vendorSwishNumber, totalAmount, orderMessage));
 
       const mobile = isMobileDevice() || (typeof window !== "undefined" && window.innerWidth <= 768);
       setIsDesktopUser(!mobile);
@@ -250,6 +254,47 @@ export default function SwishPaymentGateway({
     } catch (err: any) {
       setSwishLoading(false);
       setSwishError(err.message || "Swish payment failed. Please try again.");
+    }
+  };
+
+  const handleVerifyPaymentClick = async () => {
+    if (!swishPaymentId) return;
+    setIsVerifyingWithSwish(true);
+    setVerifyNotice(null);
+
+    try {
+      const res = await checkSwishPaymentStatus(swishPaymentId);
+      if (res.status === "PAID") {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setStep("success");
+        onPaymentSuccess(
+          customerName || "Guest User",
+          vendorShare,
+          platformFee,
+          "Swish"
+        );
+      } else if (["DECLINED", "CANCELLED", "ERROR"].includes(res.status)) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setSwishError(`Payment was ${res.status.toLowerCase()} in Swish. Please try again.`);
+        setStep("details");
+      } else {
+        // Not confirmed yet - prevent fraudulent bypass
+        setVerifyNotice(
+          "Payment has not been confirmed by Swish yet. Please approve the payment in your Swish app with BankID first."
+        );
+      }
+    } catch {
+      setVerifyNotice(
+        "Could not verify status with Swish servers. Please check your connection or Swish app and try again."
+      );
+    } finally {
+      setIsVerifyingWithSwish(false);
     }
   };
 
@@ -748,13 +793,44 @@ export default function SwishPaymentGateway({
                     </div>
                   </div>
 
+                  {/* Notice if user clicks without having paid */}
+                  {verifyNotice && (
+                    <div className="bg-amber-950/80 border border-amber-600/70 text-amber-200 p-3 rounded-xl text-left text-[11px] space-y-1 animate-fadeIn">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                        <Info className="w-4 h-4 shrink-0" />
+                        <span>Payment Not Confirmed Yet</span>
+                      </div>
+                      <p className="leading-snug text-amber-200/90">{verifyNotice}</p>
+                    </div>
+                  )}
+
+                  {/* Verified completion button */}
+                  <button
+                    type="button"
+                    disabled={isVerifyingWithSwish}
+                    onClick={handleVerifyPaymentClick}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-60 text-white font-display font-black py-3 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
+                  >
+                    {isVerifyingWithSwish ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying with Swish...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                        <span>I Have Completed Payment in Swish</span>
+                      </>
+                    )}
+                  </button>
+
                   {/* Primary CTA for desktop / simulator */}
                   <button
                     type="button"
                     onClick={handleApproveSwishDirectly}
-                    className="w-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white font-display font-black py-3.5 rounded-2xl transition-all shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-300 font-display font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
                   >
-                    <Fingerprint className="w-4 h-4" />
+                    <Fingerprint className="w-3.5 h-3.5 text-sky-400" />
                     <span>Approve & Sign with BankID (Test Simulation)</span>
                   </button>
 
@@ -787,11 +863,42 @@ export default function SwishPaymentGateway({
                     </a>
                   )}
 
+                  {/* Notice if user clicks without having paid */}
+                  {verifyNotice && (
+                    <div className="bg-amber-950/80 border border-amber-600/70 text-amber-200 p-3 rounded-xl text-left text-[11px] space-y-1 animate-fadeIn">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                        <Info className="w-4 h-4 shrink-0" />
+                        <span>Payment Not Confirmed Yet</span>
+                      </div>
+                      <p className="leading-snug text-amber-200/90">{verifyNotice}</p>
+                    </div>
+                  )}
+
+                  {/* Verified completion button */}
+                  <button
+                    type="button"
+                    disabled={isVerifyingWithSwish}
+                    onClick={handleVerifyPaymentClick}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-60 text-white font-display font-black py-3.5 rounded-2xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
+                  >
+                    {isVerifyingWithSwish ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Verifying with Swish...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-white" />
+                        <span>I Have Completed Payment in Swish</span>
+                      </>
+                    )}
+                  </button>
+
                   {/* Direct approval fallback for simulator / mobile testing */}
                   <button
                     type="button"
                     onClick={handleApproveSwishDirectly}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-200 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
+                    className="w-full bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-300 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
                   >
                     <Fingerprint className="w-3.5 h-3.5 text-sky-400" />
                     <span>Approve & Sign with BankID (Test Simulation)</span>
