@@ -93,6 +93,7 @@ interface AppContextType {
   handleUpdateEvent: (updatedEvent: ManagedEvent) => Promise<void>;
   handleDeleteEvent: (eventId: string) => Promise<void>;
   dispatchAdminInvitationEmail: (event: ManagedEvent, customPassword?: string, customApiKey?: string) => Promise<{ success: boolean; message: string; id?: string; error?: string }>;
+  attachFcmTokenToOrder: (orderId: string, token: string) => Promise<void>;
   estimateVendorWaitTime: (vendorId: string) => { minutes: number; activeCount: number; congestionLevel: "Low" | "Medium" | "High" };
   vendorApplications: VendorApplication[];
   handleSubmitVendorApplication: (appData: Omit<VendorApplication, "id" | "status" | "submittedAt">) => Promise<void>;
@@ -518,7 +519,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       status: "Placed",
       createdAt: Date.now(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      estimatedPrepTimeMinutes: 8
+      estimatedPrepTimeMinutes: 8,
+      fcmToken: (typeof window !== "undefined" ? localStorage.getItem("venueeat_fcm_token") : null) || undefined,
+      customerPhone: (typeof window !== "undefined" ? localStorage.getItem("venueeat_customer_swish") : null) || undefined,
     };
 
     try {
@@ -534,6 +537,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     logActivity(`${paymentMethodUsed} Payment Successful: Order #${newQueueNumber}. Vendor "${activeVendorObj.name}" received ${vendorSwishPaid.toFixed(2)} kr directly. Platform Fee ${platformSwishPaid.toFixed(2)} kr routed.`, "order", "success");
 
     return newOrderObj;
+  };
+
+  // Attach or update FCM token on an existing order (e.g. after customer grants notification permission)
+  const attachFcmTokenToOrder = async (orderId: string, token: string) => {
+    try {
+      await updateDoc(doc(db, "orders", orderId), cleanUndefined({ fcmToken: token }));
+    } catch (err) {
+      console.warn("Firestore order fcmToken update error:", err);
+    }
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, fcmToken: token } : o));
+    if (currentOrder?.id === orderId) {
+      setCurrentOrder(prev => prev ? { ...prev, fcmToken: token } : null);
+    }
   };
 
   // Update order status
@@ -554,6 +570,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     setNotification(`Order #${targetOrder.queueNumber} marked as ${newStatus}!`);
     logActivity(`Order #${targetOrder.queueNumber} status updated to ${newStatus} by ${targetOrder.vendorName}.`, "order", "info");
+
+    // When marked Ready, dispatch background push notification to attendee's phone
+    if (newStatus === "Ready") {
+      const matchedVendor = vendors.find(v => v.id === targetOrder.vendorId);
+      fetch("/api/notify-order-ready", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: targetOrder.id,
+          fcmToken: targetOrder.fcmToken,
+          queueNumber: targetOrder.queueNumber,
+          vendorName: targetOrder.vendorName,
+          stallNumber: matchedVendor?.stallNumber || "Express Counter",
+          customerName: targetOrder.customerName,
+        }),
+      }).catch(err => console.warn("Failed to dispatch FCM notification:", err));
+    }
   };
 
   // Vendor actions
@@ -907,6 +940,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         handleSignOut,
         logActivity,
         confirmSwishPayment,
+        attachFcmTokenToOrder,
         updateOrderStatus,
         handleUpdateVendorProfile,
         handleApproveVendor,

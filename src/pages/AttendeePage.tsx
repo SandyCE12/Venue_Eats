@@ -38,6 +38,12 @@ import SupportChat from "../components/SupportChat";
 import VendorJoinModal from "../components/VendorJoinModal";
 import { CartPopoutModal } from "../components/CartPopoutModal";
 import { EventSelectorScreen } from "../components/EventSelectorScreen";
+import {
+  isPushNotificationSupported,
+  getNotificationPermissionState,
+  requestNotificationPermissionAndToken,
+  listenForForegroundPushMessages,
+} from "../lib/fcmNotifications";
 
 export interface CartEntry {
   id: string;
@@ -87,6 +93,7 @@ export const AttendeePage: React.FC = () => {
     cartEntries,
     setCartEntries,
     updateOrderStatus,
+    attachFcmTokenToOrder,
     setNotification,
     logActivity,
     selectedUserEventId,
@@ -124,6 +131,63 @@ export const AttendeePage: React.FC = () => {
   const [activeReadyAlert, setActiveReadyAlert] = useState<ReadyAlertInfo | null>(null);
   const [isSimulatingReady, setIsSimulatingReady] = useState<boolean>(false);
   const previousOrderStatusRef = useRef<string | null>(null);
+
+  // Phone background push notification state
+  const [fcmSubscribed, setFcmSubscribed] = useState<boolean>(() => {
+    return typeof window !== "undefined" && getNotificationPermissionState() === "granted";
+  });
+  const [fcmLoading, setFcmLoading] = useState<boolean>(false);
+
+  // Listen for FCM foreground push messages
+  useEffect(() => {
+    const unsubscribe = listenForForegroundPushMessages((payload) => {
+      playReadyChime();
+      if (currentOrder) {
+        const matchedVendor = vendors.find(v => v.id === currentOrder.vendorId);
+        triggerReadyAlert({
+          id: `fcm_${Date.now()}`,
+          orderId: currentOrder.id,
+          queueNumber: currentOrder.queueNumber,
+          vendorName: currentOrder.vendorName,
+          stallNumber: matchedVendor?.stallNumber || "Express Counter",
+          location: matchedVendor?.location || "Festival Grounds",
+          itemsSummary: currentOrder.items.map(i => `${i.menuItem.name} x${i.quantity}`).join(", "),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, [currentOrder, vendors]);
+
+  // If permission is already granted, ensure currentOrder has the fcmToken attached
+  useEffect(() => {
+    if (currentOrder && !currentOrder.fcmToken && getNotificationPermissionState() === "granted") {
+      requestNotificationPermissionAndToken().then(res => {
+        if (res.token && currentOrder.id) {
+          attachFcmTokenToOrder(currentOrder.id, res.token);
+          setFcmSubscribed(true);
+        }
+      });
+    }
+  }, [currentOrder?.id]);
+
+  const handleEnablePushNotifications = async () => {
+    setFcmLoading(true);
+    try {
+      const res = await requestNotificationPermissionAndToken();
+      if (res.status === "granted" && res.token) {
+        setFcmSubscribed(true);
+        if (currentOrder) {
+          await attachFcmTokenToOrder(currentOrder.id, res.token);
+        }
+        setNotification("Lock-screen notifications enabled! You'll be alerted when food is ready.");
+      } else if (res.status === "denied") {
+        alert("Notifications are blocked in your browser settings. Please allow notifications for VenueEat in site settings.");
+      }
+    } finally {
+      setFcmLoading(false);
+    }
+  };
 
   // Customization overlay state
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
@@ -725,6 +789,50 @@ export const AttendeePage: React.FC = () => {
             currentOrder ? (
               <div className="space-y-4">
                 <OrderStatusTracker order={currentOrder} />
+                
+                {/* Real Lock-Screen Phone Push Notification Opt-in Card */}
+                {currentOrder.status !== "Completed" && (
+                  <div className="bg-sky-50 border border-sky-200/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border transition-all ${
+                        fcmSubscribed 
+                          ? "bg-emerald-500 text-white border-emerald-600 shadow-xs" 
+                          : "bg-sky-500 text-white border-sky-600 shadow-xs"
+                      }`}>
+                        {fcmSubscribed ? <CheckCircle2 className="w-5 h-5 text-white" /> : <BellRing className="w-5 h-5 animate-pulse" />}
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h5 className="font-display font-black text-xs text-zinc-900">
+                            {fcmSubscribed ? "Lock-Screen Notifications Active ✓" : "Get Notified When Food is Ready"}
+                          </h5>
+                          {fcmSubscribed && (
+                            <span className="text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-300">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-600 font-medium">
+                          {fcmSubscribed
+                            ? "Your phone will buzz with sound and vibration even if the app is closed or screen is locked."
+                            : "Enable notifications so your phone alerts you even if you close the webapp or put your phone away."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {!fcmSubscribed && isPushNotificationSupported() && (
+                      <button
+                        type="button"
+                        onClick={handleEnablePushNotifications}
+                        disabled={fcmLoading}
+                        className="w-full sm:w-auto bg-sky-600 hover:bg-sky-500 active:scale-95 disabled:opacity-50 text-white font-display font-black text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-sky-600/20 shrink-0 flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>{fcmLoading ? "Enabling..." : "Enable Phone Alerts"}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
                 
                 {/* Fast-forward simulator shortcut button if order is Placed or Preparing */}
                 {(currentOrder.status === "Placed" || currentOrder.status === "Preparing") && (
