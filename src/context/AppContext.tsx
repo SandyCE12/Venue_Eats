@@ -503,8 +503,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ? `${finalCustName} (Table ${activeTable})`
       : finalCustName;
 
-    const vendorSwishPaid = cartTotal * 0.965; // 96.5% direct vendor share
-    const platformSwishPaid = cartTotal * 0.035; // 3.5% venueeat platform fee
+    // 3.5% Platform Fee added on top of food cost:
+    // Vendor receives 100% of food cost (cartTotal)
+    // VenueEat platform fee is 3.5% added on top
+    // Total Swish amount paid by customer = cartTotal + 3.5%
+    const foodCost = Math.round(cartTotal * 100) / 100;
+    const platformSwishPaid = Math.round(foodCost * 0.035 * 100) / 100;
+    const vendorSwishPaid = foodCost;
+    const totalOrderAmount = Math.round((foodCost + platformSwishPaid) * 100) / 100;
 
     const newOrderObj: Order = {
       id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
@@ -513,9 +519,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       vendorName: activeVendorObj.name,
       customerName: displayNameWithTable,
       items: itemsInCart,
-      totalAmount: cartTotal,
+      totalAmount: totalOrderAmount,
       vendorSwishShareSEK: vendorSwishPaid,
       platformFeeSEK: platformSwishPaid,
+      vendorSwishPaid: vendorSwishPaid,
+      platformSwishPaid: platformSwishPaid,
       status: "Placed",
       createdAt: Date.now(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -534,7 +542,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCurrentOrder(newOrderObj);
     clearCart();
     setNotification(`Order #${newQueueNumber} placed successfully via ${paymentMethodUsed}!`);
-    logActivity(`${paymentMethodUsed} Payment Successful: Order #${newQueueNumber}. Vendor "${activeVendorObj.name}" received ${vendorSwishPaid.toFixed(2)} kr directly. Platform Fee ${platformSwishPaid.toFixed(2)} kr routed.`, "order", "success");
+    logActivity(`${paymentMethodUsed} Payment Successful: Order #${newQueueNumber}. Food sales due to vendor "${activeVendorObj.name}": ${vendorSwishPaid.toFixed(2)} kr. Platform Fee: +${platformSwishPaid.toFixed(2)} kr. Total Swish intake: ${totalOrderAmount.toFixed(2)} kr.`, "order", "success");
 
     return newOrderObj;
   };

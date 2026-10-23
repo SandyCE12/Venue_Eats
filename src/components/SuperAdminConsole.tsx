@@ -42,11 +42,23 @@ import {
   Send,
   Loader2,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Receipt,
+  ShoppingBag,
+  CreditCard,
+  ArrowDownRight,
+  FileSpreadsheet,
+  CheckCheck,
+  Landmark,
+  Phone,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight
 } from "lucide-react";
-import type { ManagedEvent, EventStatus, EventAdminPermissions } from "../types";
+import type { ManagedEvent, EventStatus, EventAdminPermissions, Vendor, Order } from "../types";
 import { useApp } from "../context/AppContext";
 import { AUTHORIZED_SUPER_ADMINS } from "../data";
+import { AdminStoreDetailModal } from "./AdminStoreDetailModal";
 
 interface SuperAdminConsoleProps {
   managedEvents?: ManagedEvent[];
@@ -60,6 +72,220 @@ interface SuperAdminConsoleProps {
   onDeleteEvent?: (eventId: string) => void;
   onUpdateEventMap?: () => void;
 }
+
+const FALLBACK_SUPERADMIN_ORDERS: Order[] = [
+  {
+    id: "ord-super-101",
+    queueNumber: 101,
+    vendorId: "v1",
+    vendorName: "Delhi Street Sensation",
+    customerName: "Lars Lindqvist",
+    customerPhone: "+46 70 123 4567",
+    timestamp: "14:45",
+    createdAt: Date.now() - 1000 * 60 * 16,
+    status: "Completed",
+    totalAmount: 269.10,
+    vendorSwishShareSEK: 260.00,
+    platformFeeSEK: 9.10,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m1_1", name: "Butter Chicken Naan Roll", price: 135, description: "", category: "Food", stock: true },
+        quantity: 1,
+        selectedExtras: [{ id: "e1_1", name: "Extra Garlic Butter Glaze", price: 15 }]
+      },
+      {
+        menuItem: { id: "m1_3", name: "Mango Lassi Frappé", price: 55, description: "", category: "Drink", stock: true },
+        quantity: 2
+      }
+    ]
+  },
+  {
+    id: "ord-super-102",
+    queueNumber: 102,
+    vendorId: "v1",
+    vendorName: "Delhi Street Sensation",
+    customerName: "Sofia Bergman",
+    customerPhone: "+46 72 987 6543",
+    timestamp: "14:48",
+    createdAt: Date.now() - 1000 * 60 * 13,
+    status: "Ready",
+    totalAmount: 175.95,
+    vendorSwishShareSEK: 170.00,
+    platformFeeSEK: 5.95,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m1_2", name: "Crispy Samosa Chaat Bowl", price: 115, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m1_3", name: "Mango Lassi Frappé", price: 55, description: "", category: "Drink", stock: true },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: "ord-super-103",
+    queueNumber: 103,
+    vendorId: "v2",
+    vendorName: "Bombay Cutting Chai & Bun Maska",
+    customerName: "Mikael Ekström",
+    customerPhone: "+46 73 555 1290",
+    timestamp: "14:50",
+    createdAt: Date.now() - 1000 * 60 * 11,
+    status: "Preparing",
+    totalAmount: 170.78,
+    vendorSwishShareSEK: 165.00,
+    platformFeeSEK: 5.78,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m2_1", name: "Mumbai Vada Pav Slider (2 pcs)", price: 95, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m2_3", name: "Masala Cutting Chai", price: 35, description: "", category: "Drink", stock: true },
+        quantity: 2
+      }
+    ]
+  },
+  {
+    id: "ord-super-104",
+    queueNumber: 104,
+    vendorId: "v3",
+    vendorName: "Kerala Coastal Spice Shack",
+    customerName: "Elin Wallin",
+    customerPhone: "+46 76 333 4455",
+    timestamp: "14:52",
+    createdAt: Date.now() - 1000 * 60 * 9,
+    status: "Preparing",
+    totalAmount: 217.35,
+    vendorSwishShareSEK: 210.00,
+    platformFeeSEK: 7.35,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m3_1", name: "Malabar Fried Prawn Cone", price: 145, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m3_3", name: "Fresh Tender Coconut Cooler", price: 65, description: "", category: "Drink", stock: true },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: "ord-super-105",
+    queueNumber: 105,
+    vendorId: "v4",
+    vendorName: "Jaipur Palace Sweets & Kulfi",
+    customerName: "Oscar Nilsson",
+    customerPhone: "+46 70 888 9911",
+    timestamp: "14:54",
+    createdAt: Date.now() - 1000 * 60 * 7,
+    status: "Placed",
+    totalAmount: 144.90,
+    vendorSwishShareSEK: 140.00,
+    platformFeeSEK: 4.90,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m4_1", name: "Warm Gulab Jamun & Rabdi", price: 75, description: "", category: "Dessert", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m4_2", name: "Royal Kesar Pista Kulfi Stick", price: 65, description: "", category: "Dessert", stock: true },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: "ord-super-106",
+    queueNumber: 106,
+    vendorId: "v8",
+    vendorName: "Napoli Woodfire Crusts",
+    customerName: "Astrid Lindgren",
+    customerPhone: "+46 72 111 2233",
+    timestamp: "14:55",
+    createdAt: Date.now() - 1000 * 60 * 5,
+    status: "Preparing",
+    totalAmount: 338.45,
+    vendorSwishShareSEK: 327.00,
+    platformFeeSEK: 11.45,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m8_1", name: "Margherita D.O.P Folded Pizza", price: 119, description: "", category: "Food", stock: true },
+        quantity: 1,
+        selectedExtras: [{ id: "e8_1", name: "Add Creamy Burrata Center", price: 35 }]
+      },
+      {
+        menuItem: { id: "m8_2", name: "Prosciutto & Truffle Panuozzo", price: 135, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m8_3", name: "San Pellegrino Blood Orange", price: 38, description: "", category: "Drink", stock: true },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: "ord-super-107",
+    queueNumber: 107,
+    vendorId: "v9",
+    vendorName: "Beirut Mezze & Shawarma",
+    customerName: "Johan Frisk",
+    customerPhone: "+46 73 999 0011",
+    timestamp: "14:57",
+    createdAt: Date.now() - 1000 * 60 * 3,
+    status: "Placed",
+    totalAmount: 186.30,
+    vendorSwishShareSEK: 180.00,
+    platformFeeSEK: 6.30,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m9_1", name: "Spiced Chicken Shawarma Wrap", price: 125, description: "", category: "Food", stock: true },
+        quantity: 1,
+        selectedExtras: [{ id: "e9_1", name: "Extra Toum Garlic Sauce", price: 15 }, { id: "e9_2", name: "Add Spicy Harissa", price: 10 }]
+      },
+      {
+        menuItem: { id: "m9_3", name: "Ayran Mint Yogurt Cooler", price: 30, description: "", category: "Drink", stock: true },
+        quantity: 1
+      }
+    ]
+  },
+  {
+    id: "ord-super-108",
+    queueNumber: 108,
+    vendorId: "v15",
+    vendorName: "Formosa Bao & Dumpling House",
+    customerName: "Karin Sundström",
+    customerPhone: "+46 76 222 3344",
+    timestamp: "14:59",
+    createdAt: Date.now() - 1000 * 60 * 1,
+    status: "Placed",
+    totalAmount: 269.10,
+    vendorSwishShareSEK: 260.00,
+    platformFeeSEK: 9.10,
+    paymentMethod: "Swish",
+    items: [
+      {
+        menuItem: { id: "m15_1", name: "Classic Braised Pork Belly Gua Bao (2 pcs)", price: 110, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m15_2", name: "Pan-Fried Pork & Chive Dumplings (6 pcs)", price: 95, description: "", category: "Food", stock: true },
+        quantity: 1
+      },
+      {
+        menuItem: { id: "m15_3", name: "Taiwanese Brown Sugar Milk", price: 55, description: "", category: "Drink", stock: true },
+        quantity: 1
+      }
+    ]
+  }
+];
 
 export default function SuperAdminConsole({
   managedEvents,
@@ -80,7 +306,7 @@ export default function SuperAdminConsole({
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"live" | "credentials" | "history" | "create">("live");
+  const [activeTab, setActiveTab] = useState<"live" | "settlements" | "orders" | "credentials" | "history" | "create">("live");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Live" | "Scheduled" | "Completed">("All");
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
@@ -113,7 +339,230 @@ export default function SuperAdminConsole({
   });
   const [showKeyConfig, setShowKeyConfig] = useState(false);
 
-  const { dispatchAdminInvitationEmail } = useApp();
+  // Settlements & Master Orders states
+  const [selectedEventIdFilter, setSelectedEventIdFilter] = useState<string>("All");
+  const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>("All");
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>("All");
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>("");
+  const [inspectVendor, setInspectVendor] = useState<Vendor | null>(null);
+  const [settledVendorsMap, setSettledVendorsMap] = useState<{ [vendorId: string]: { settledAt: string; reference: string } }>(() => {
+    try {
+      const saved = localStorage.getItem("venueeat_superadmin_settlements_v1");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const {
+    dispatchAdminInvitationEmail,
+    orders: liveOrders = [],
+    vendors: liveVendors = [],
+    handleUpdateVendorProfile,
+    handleApproveVendor,
+    handleSuspendVendor
+  } = useApp();
+
+  const allOrders: Order[] = liveOrders && liveOrders.length > 0 ? liveOrders : FALLBACK_SUPERADMIN_ORDERS;
+  const allVendors: Vendor[] = liveVendors && liveVendors.length > 0 ? liveVendors : [];
+
+  // Stall expansion state in settlements view
+  const [expandedVendorId, setExpandedVendorId] = useState<string | null>(null);
+
+  // Exact 3.5% calculation on each individual order rounded to 2 decimal places (standard banking/currency)
+  // RULE (Additive Fee):
+  // 1. Food Cost: The original item price(s) + extras (vendor's revenue).
+  // 2. Platform Cut: 3.5% added ON TOP of the food cost (Math.round(foodCost * 0.035 * 100) / 100).
+  // 3. Total Bill: Food Cost + 3.5% Platform Cut (gross amount collected via Swish from attendee).
+  // 4. Vendor Payout / Net Cut: 100% of Food Cost (Vendor gets full menu price, zero deduction!).
+  const getOrderFoodCost = (o: Order): number => {
+    if (o.items && o.items.length > 0) {
+      const itemsSum = o.items.reduce((sum, it) => {
+        const itemPrice = it.menuItem?.price || 0;
+        const extrasPrice = it.selectedExtras?.reduce((es, e) => es + (e.price || 0), 0) || 0;
+        return sum + (itemPrice + extrasPrice) * (it.quantity || 1);
+      }, 0);
+      if (itemsSum > 0) return Math.round(itemsSum * 100) / 100;
+    }
+    if (typeof o.vendorSwishPaid === "number" && o.vendorSwishPaid > 0) {
+      return Math.round(o.vendorSwishPaid * 100) / 100;
+    }
+    if (typeof o.vendorSwishShareSEK === "number" && o.vendorSwishShareSEK > 0) {
+      return Math.round(o.vendorSwishShareSEK * 100) / 100;
+    }
+    return Math.round((o.totalAmount || 0) * 100) / 100;
+  };
+
+  const getOrderPlatformFee = (o: Order): number => {
+    if (typeof o.platformFeeSEK === "number") {
+      return Math.round(o.platformFeeSEK * 100) / 100;
+    }
+    if (typeof o.platformSwishPaid === "number") {
+      return Math.round(o.platformSwishPaid * 100) / 100;
+    }
+    const food = getOrderFoodCost(o);
+    return Math.round(food * 0.035 * 100) / 100;
+  };
+
+  const getOrderVendorCut = (o: Order): number => {
+    return getOrderFoodCost(o);
+  };
+
+  const getOrderTotalBill = (o: Order): number => {
+    const food = getOrderFoodCost(o);
+    const fee = getOrderPlatformFee(o);
+    return Math.round((food + fee) * 100) / 100;
+  };
+
+  const formatSEK = (val: number): string => {
+    const rounded = Math.round((val || 0) * 100) / 100;
+    if (Math.abs(rounded) < 0.001) return "0.00";
+    return rounded.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const toggleVendorSettlement = (vendorId: string) => {
+    setSettledVendorsMap(prev => {
+      const next = { ...prev };
+      if (next[vendorId]) {
+        delete next[vendorId];
+      } else {
+        next[vendorId] = {
+          settledAt: new Date().toISOString().replace("T", " ").substring(0, 16),
+          reference: `PAY-SE-${Math.floor(100000 + Math.random() * 900000)}`
+        };
+      }
+      try {
+        localStorage.setItem("venueeat_superadmin_settlements_v1", JSON.stringify(next));
+      } catch (err) {
+        console.warn("Could not save settlement state", err);
+      }
+      return next;
+    });
+  };
+
+  const vendorSettlementSummaries = allVendors
+    .filter(v => {
+      if (selectedEventIdFilter === "All") return true;
+      return (v.eventId || "evt-001") === selectedEventIdFilter;
+    })
+    .map(vendor => {
+      const vendorOrders = allOrders.filter(o => o.vendorId === vendor.id);
+      const ordersCount = vendorOrders.length;
+      // Calculate food sales (vendor due), 3.5% platform fee added, and total Swish bill collected
+      const foodSales = vendorOrders.reduce((sum, o) => sum + getOrderFoodCost(o), 0);
+      const platformFee = vendorOrders.reduce((sum, o) => sum + getOrderPlatformFee(o), 0);
+      const grossAmount = vendorOrders.reduce((sum, o) => sum + getOrderTotalBill(o), 0);
+      const netPayout = foodSales; // Vendor receives 100% of food sales
+      const matchedEvent = events.find(e => e.id === (vendor.eventId || "evt-001")) || events[0];
+      const isSettled = !!settledVendorsMap[vendor.id];
+      const settlementInfo = settledVendorsMap[vendor.id];
+
+      return {
+        vendor,
+        eventName: matchedEvent?.name || "Stockholm Festival",
+        eventCode: matchedEvent?.code || "EVT",
+        orders: vendorOrders,
+        ordersCount,
+        grossAmount: Math.round(grossAmount * 100) / 100, // Total Swish Bill collected
+        platformFee: Math.round(platformFee * 100) / 100, // 3.5% added fee
+        netPayout: Math.round(netPayout * 100) / 100,     // 100% food price due to vendor
+        isSettled,
+        settlementInfo,
+        hasBankDetails: !!(vendor.bankAccountNumber || vendor.bankGiro || vendor.swishNumber)
+      };
+    });
+
+  const totalSettlementGross = vendorSettlementSummaries.reduce((sum, s) => sum + s.grossAmount, 0);
+  const totalSettlementPlatformFee = vendorSettlementSummaries.reduce((sum, s) => sum + s.platformFee, 0);
+  const totalSettlementNetPayout = vendorSettlementSummaries.reduce((sum, s) => sum + s.netPayout, 0);
+  const totalSettlementOrders = vendorSettlementSummaries.reduce((sum, s) => sum + s.ordersCount, 0);
+  const totalSettledStalls = vendorSettlementSummaries.filter(s => s.isSettled).length;
+
+  const handleExportSettlementCsv = () => {
+    const headers = [
+      "Vendor ID",
+      "Stall Name",
+      "Stall Number",
+      "Event Name",
+      "Bank Name",
+      "Clearing Number",
+      "Account Number",
+      "Bankgiro",
+      "Plusgiro",
+      "Swish Number",
+      "Account Holder",
+      "Total Orders",
+      "Food Sales (SEK)",
+      "Platform Fee 3.5% Added (SEK)",
+      "Total Swish Intake (SEK)",
+      "Net Vendor Payout (SEK)",
+      "Settlement Status",
+      "Payout Reference",
+      "Settled Timestamp"
+    ];
+
+    const rows = vendorSettlementSummaries.map(s => [
+      `"${s.vendor.id}"`,
+      `"${s.vendor.name}"`,
+      `"${s.vendor.stallNumber || ''}"`,
+      `"${s.eventName}"`,
+      `"${s.vendor.bankName || 'Not Set'}"`,
+      `"${s.vendor.bankClearingNumber || ''}"`,
+      `"${s.vendor.bankAccountNumber || ''}"`,
+      `"${s.vendor.bankGiro || ''}"`,
+      `"${s.vendor.plusGiro || ''}"`,
+      `"${s.vendor.swishNumber || ''}"`,
+      `"${s.vendor.bankAccountHolder || s.vendor.name}"`,
+      s.ordersCount,
+      s.netPayout.toFixed(2),
+      s.platformFee.toFixed(2),
+      s.grossAmount.toFixed(2),
+      s.netPayout.toFixed(2),
+      s.isSettled ? "Settled" : "Pending",
+      `"${s.settlementInfo?.reference || ''}"`,
+      `"${s.settlementInfo?.settledAt || ''}"`
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `venueeat-settlements-${selectedEventIdFilter === "All" ? "all-festivals" : selectedEventIdFilter}-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredMasterOrders = allOrders.filter(o => {
+    const orderVendor = allVendors.find(v => v.id === o.vendorId);
+    const orderEventId = orderVendor?.eventId || "evt-001";
+    if (selectedEventIdFilter !== "All" && orderEventId !== selectedEventIdFilter) {
+      return false;
+    }
+    if (selectedVendorFilter !== "All" && o.vendorId !== selectedVendorFilter) {
+      return false;
+    }
+    if (orderStatusFilter !== "All" && o.status !== orderStatusFilter) {
+      return false;
+    }
+    if (orderSearchQuery.trim()) {
+      const q = orderSearchQuery.toLowerCase();
+      const matchesQueue = o.queueNumber?.toString().includes(q) || `q-${o.queueNumber}`.toLowerCase().includes(q);
+      const matchesCustomer = o.customerName?.toLowerCase().includes(q) || o.customerPhone?.toLowerCase().includes(q);
+      const matchesVendor = o.vendorName?.toLowerCase().includes(q);
+      const matchesItems = o.items?.some(i => i.menuItem?.name?.toLowerCase().includes(q));
+      if (!matchesQueue && !matchesCustomer && !matchesVendor && !matchesItems) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const masterOrdersGross = filteredMasterOrders.reduce((sum, o) => sum + getOrderTotalBill(o), 0);
+  const masterOrdersVendorCut = filteredMasterOrders.reduce((sum, o) => sum + getOrderVendorCut(o), 0);
+  const masterOrdersPlatformCut = filteredMasterOrders.reduce((sum, o) => sum + getOrderPlatformFee(o), 0);
 
   const handleConfirmDelete = () => {
     if (!eventToDelete) return;
@@ -721,11 +1170,11 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
       {/* MAIN NAVIGATION & TAB SYSTEM */}
       <div className="bg-white rounded-3xl border-2 border-zinc-200 shadow-sm overflow-hidden">
         {/* Top Tab Bar */}
-        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center border-b-2 border-zinc-100 bg-zinc-50/60 p-2 gap-2">
+        <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center border-b-2 border-zinc-100 bg-zinc-50/60 p-2 gap-2">
           <div className="flex gap-1 overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab("live")}
-              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "live"
                   ? "bg-zinc-900 text-white shadow-md font-black"
                   : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
@@ -736,79 +1185,165 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
             </button>
 
             <button
+              onClick={() => setActiveTab("settlements")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "settlements"
+                  ? "bg-emerald-600 text-white shadow-md font-black"
+                  : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              <DollarSign className="w-4 h-4 text-emerald-300" />
+              Vendor Settlements & Payouts ({allVendors.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("orders")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "orders"
+                  ? "bg-zinc-900 text-white shadow-md font-black"
+                  : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              <Receipt className="w-4 h-4 text-blue-400" />
+              Master Orders Ledger ({allOrders.length})
+            </button>
+
+            <button
               onClick={() => setActiveTab("credentials")}
-              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "credentials"
                   ? "bg-zinc-900 text-white shadow-md font-black"
                   : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
               }`}
             >
               <KeyRound className="w-4 h-4 text-purple-400" />
-              Event Admin Access & Logins ({events.length})
+              Admin Credentials ({events.length})
             </button>
 
             <button
               onClick={() => setActiveTab("history")}
-              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "history"
                   ? "bg-zinc-900 text-white shadow-md font-black"
                   : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
               }`}
             >
               <Archive className="w-4 h-4 text-amber-400" />
-              Previous Event History ({historicalEventsCount})
+              Past Festivals ({historicalEventsCount})
             </button>
 
             <button
               onClick={() => setActiveTab("create")}
-              className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-display text-xs md:text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "create"
                   ? "bg-orange-500 text-white shadow-md font-black"
                   : "text-orange-600 hover:bg-orange-50 font-bold"
               }`}
             >
               <Plus className="w-4 h-4" />
-              Launch New Event
+              Launch Event
             </button>
           </div>
 
           {/* Quick Filter Bar */}
           {activeTab !== "create" && (
-            <div className="flex items-center gap-2 px-2 pb-1 sm:pb-0">
-              <div className="relative flex-1 sm:w-48">
-                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search events..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-white border border-zinc-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-orange-500 font-medium"
-                />
-              </div>
+            <div className="flex flex-wrap items-center gap-2 px-2 pb-1 lg:pb-0">
+              {activeTab === "settlements" ? (
+                <>
+                  <select
+                    value={selectedEventIdFilter}
+                    onChange={(e) => setSelectedEventIdFilter(e.target.value)}
+                    className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="All">All Stockholm Festivals</option>
+                    {events.map(evt => (
+                      <option key={evt.id} value={evt.id}>{evt.name} ({evt.code})</option>
+                    ))}
+                  </select>
 
-              {activeTab === "live" && (
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-orange-500 cursor-pointer"
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Live">Live Only</option>
-                  <option value="Scheduled">Scheduled</option>
-                </select>
-              )}
+                  <button
+                    onClick={handleExportSettlementCsv}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs transition-all cursor-pointer"
+                    title="Export Swedish bank transfer batch CSV"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Export Payouts CSV</span>
+                  </button>
+                </>
+              ) : activeTab === "orders" ? (
+                <>
+                  <div className="relative flex-1 sm:w-48">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Queue #, customer, dish..."
+                      value={orderSearchQuery}
+                      onChange={(e) => setOrderSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-blue-500 font-medium"
+                    />
+                  </div>
 
-              {activeTab === "history" && (
-                <select
-                  value={yearFilter}
-                  onChange={(e) => setYearFilter(e.target.value)}
-                  className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-orange-500 cursor-pointer"
-                >
-                  <option value="All">All Years</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                </select>
+                  <select
+                    value={selectedEventIdFilter}
+                    onChange={(e) => setSelectedEventIdFilter(e.target.value)}
+                    className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="All">All Events</option>
+                    {events.map(evt => (
+                      <option key={evt.id} value={evt.id}>{evt.code} - {evt.name}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={orderStatusFilter}
+                    onChange={(e) => setOrderStatusFilter(e.target.value)}
+                    className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Placed">Placed</option>
+                    <option value="Preparing">Preparing</option>
+                    <option value="Ready">Ready</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </>
+              ) : (
+                <>
+                  <div className="relative flex-1 sm:w-48">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search events..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-none focus:border-orange-500 font-medium"
+                    />
+                  </div>
+
+                  {activeTab === "live" && (
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                      className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-orange-500 cursor-pointer"
+                    >
+                      <option value="All">All Statuses</option>
+                      <option value="Live">Live Only</option>
+                      <option value="Scheduled">Scheduled</option>
+                    </select>
+                  )}
+
+                  {activeTab === "history" && (
+                    <select
+                      value={yearFilter}
+                      onChange={(e) => setYearFilter(e.target.value)}
+                      className="bg-white border border-zinc-200 rounded-xl px-2.5 py-1.5 text-xs text-zinc-700 font-bold focus:outline-none focus:border-orange-500 cursor-pointer"
+                    >
+                      <option value="All">All Years</option>
+                      <option value="2026">2026</option>
+                      <option value="2025">2025</option>
+                      <option value="2024">2024</option>
+                    </select>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1161,6 +1696,686 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
                   </button>
                 </div>
               </form>
+            </div>
+          ) : activeTab === "settlements" ? (
+            /* VENDOR SETTLEMENTS & FINANCIAL PAYOUTS CONSOLE */
+            <div className="space-y-6 animate-fadeIn">
+              {/* Settlements Header Card */}
+              <div className="bg-gradient-to-r from-emerald-950 via-zinc-900 to-zinc-950 text-white rounded-3xl p-6 border-2 border-emerald-800/60 shadow-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                      <Landmark className="w-3.5 h-3.5 text-emerald-400" /> End-of-Event Financial Settlement Engine
+                    </span>
+                    <span className="bg-zinc-800 text-zinc-300 font-mono text-[10px] px-2.5 py-0.5 rounded-full">
+                      Swish Central Account: <strong className="text-white">1230197665</strong>
+                    </span>
+                  </div>
+
+                  <h3 className="font-display font-black text-xl md:text-2xl text-white tracking-tight">
+                    Vendor Payouts & Commission Settlement
+                  </h3>
+
+                  <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                    100% of attendee mobile payments are deposited directly into the Super Admin's merchant Swish bank account. At festival completion, calculate each food stall's gross intake, automatically deduct VenueEat's 3.5% SaaS commission, inspect Swedish bank details, and mark payouts as settled.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                  <button
+                    onClick={handleExportSettlementCsv}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-display font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download Bank Payout Batch (.CSV)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Settlement KPI Summary Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Metric 1: Gross Swish Intake */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="flex justify-between items-center text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <span>Gross Swish Intake</span>
+                    <DollarSign className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="font-mono font-black text-2xl text-zinc-950">
+                    {formatSEK(totalSettlementGross)} <span className="text-xs text-zinc-500">SEK</span>
+                  </div>
+                  <p className="text-[10px] text-emerald-600 font-bold">100% deposited in SuperAdmin Swish</p>
+                </div>
+
+                {/* Metric 2: Net Payouts Due to Vendors */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="flex justify-between items-center text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <span>Vendor Payouts Due</span>
+                    <Store className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="font-mono font-black text-2xl text-blue-600">
+                    {formatSEK(totalSettlementNetPayout)} <span className="text-xs text-zinc-500">SEK</span>
+                  </div>
+                  <p className="text-[10px] text-zinc-500 font-medium">Payable to {vendorSettlementSummaries.length} festival stalls</p>
+                </div>
+
+                {/* Metric 3: Platform Commission Retained */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="flex justify-between items-center text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <span>VenueEat Cut Retained</span>
+                    <TrendingUp className="w-4 h-4 text-purple-500" />
+                  </div>
+                  <div className="font-mono font-black text-2xl text-purple-600">
+                    {formatSEK(totalSettlementPlatformFee)} <span className="text-xs text-zinc-500">SEK</span>
+                  </div>
+                  <p className="text-[10px] text-purple-600 font-bold">3.5% fee calculated on each order</p>
+                </div>
+
+                {/* Metric 4: Payout Progress */}
+                <div className="bg-white rounded-2xl p-5 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="flex justify-between items-center text-zinc-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <span>Settlement Status</span>
+                    <CheckCheck className="w-4 h-4 text-amber-500" />
+                  </div>
+                  <div className="font-mono font-black text-2xl text-zinc-950 flex items-center gap-2">
+                    <span>{totalSettledStalls} / {vendorSettlementSummaries.length}</span>
+                    <span className="text-xs font-sans font-bold text-zinc-500">Stalls Settled</span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${vendorSettlementSummaries.length > 0 ? (totalSettledStalls / vendorSettlementSummaries.length) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vendor Settlement Breakdown Ledger Table */}
+              <div className="bg-white rounded-2xl border-2 border-zinc-200 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-zinc-200 bg-zinc-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h4 className="font-display font-black text-sm text-zinc-900">
+                      Stall Payout & Bank Verification Ledger
+                    </h4>
+                    <p className="text-[11px] text-zinc-500 font-medium">
+                      Showing {vendorSettlementSummaries.length} food vendors across {selectedEventIdFilter === "All" ? "all festivals" : "selected festival"} • Click any stall row to open all customer orders
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase">
+                      Total Orders: <strong className="text-zinc-800">{totalSettlementOrders}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-zinc-100/70 border-b border-zinc-200 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-600">
+                        <th className="py-3 px-4">Stall / Food Vendor</th>
+                        <th className="py-3 px-3">Festival Event</th>
+                        <th className="py-3 px-3 text-center">Orders</th>
+                        <th className="py-3 px-3 text-right">Food Sales (Vendor Due)</th>
+                        <th className="py-3 px-3 text-right">+3.5% Fee Added</th>
+                        <th className="py-3 px-3 text-right">Total Bill (Swish Intake)</th>
+                        <th className="py-3 px-4 text-right">Net Payout Due</th>
+                        <th className="py-3 px-4">Registered Bank / Swish</th>
+                        <th className="py-3 px-3 text-center">Settlement Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 font-sans">
+                      {vendorSettlementSummaries.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-12 text-center text-zinc-400 font-medium">
+                            No food stalls found for the selected event filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        vendorSettlementSummaries.map((s) => {
+                          const isExpanded = expandedVendorId === s.vendor.id;
+
+                          return (
+                            <React.Fragment key={s.vendor.id}>
+                              {/* Primary Stall Row */}
+                              <tr 
+                                onClick={() => setExpandedVendorId(isExpanded ? null : s.vendor.id)}
+                                className={`transition-all cursor-pointer ${
+                                  isExpanded 
+                                    ? "bg-emerald-50/80 border-l-4 border-l-emerald-500 shadow-inner" 
+                                    : "hover:bg-zinc-50/90"
+                                }`}
+                              >
+                                {/* Stall / Food Vendor */}
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 shrink-0 ${
+                                      isExpanded ? "rotate-180 text-emerald-600" : "text-zinc-400"
+                                    }`} />
+                                    <div className="w-8 h-8 rounded-xl bg-orange-50 border border-orange-200 text-base flex items-center justify-center shrink-0">
+                                      {s.vendor.logo || "🍲"}
+                                    </div>
+                                    <div>
+                                      <div className="font-display font-black text-xs text-zinc-950 flex items-center gap-1.5">
+                                        <span>{s.vendor.name}</span>
+                                        {s.vendor.stallNumber && (
+                                          <span className="text-[9px] font-mono font-bold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
+                                            {s.vendor.stallNumber}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-zinc-500 font-medium">
+                                          {s.vendor.cuisine}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-emerald-600 hover:underline">
+                                          {isExpanded ? "▲ Hide orders" : `▼ View ${s.ordersCount} orders`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Festival Event */}
+                                <td className="py-3.5 px-3">
+                                  <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200/60 font-mono text-[10px] font-bold px-2 py-0.5 rounded">
+                                    {s.eventCode}
+                                  </span>
+                                </td>
+
+                                {/* Orders */}
+                                <td className="py-3.5 px-3 text-center font-mono font-bold text-zinc-700">
+                                  <span className="inline-block bg-zinc-100 px-2 py-0.5 rounded text-xs">
+                                    {s.ordersCount}
+                                  </span>
+                                </td>
+
+                                {/* Food Sales (Vendor Due) */}
+                                <td className="py-3.5 px-3 text-right font-mono font-bold text-zinc-700">
+                                  {formatSEK(s.netPayout)} <span className="text-[10px] text-zinc-400 font-sans font-normal">SEK</span>
+                                </td>
+
+                                {/* +3.5% Platform Fee Added */}
+                                <td className="py-3.5 px-3 text-right font-mono text-purple-600 font-bold">
+                                  +{formatSEK(s.platformFee)} <span className="text-[10px] text-purple-400 font-sans font-normal">SEK</span>
+                                </td>
+
+                                {/* Total Bill (Swish Intake) */}
+                                <td className="py-3.5 px-3 text-right font-mono font-black text-zinc-950">
+                                  {formatSEK(s.grossAmount)} <span className="text-[10px] text-zinc-400 font-sans font-normal">SEK</span>
+                                </td>
+
+                                {/* Net Payout Due */}
+                                <td className="py-3.5 px-4 text-right font-mono font-black text-emerald-600 text-sm">
+                                  {formatSEK(s.netPayout)} <span className="text-[10px] text-emerald-500 font-sans font-normal">SEK</span>
+                                </td>
+
+                                {/* Bank / Swish Info */}
+                                <td className="py-3.5 px-4">
+                                  {s.hasBankDetails ? (
+                                    <div className="space-y-0.5 font-mono text-[11px]">
+                                      <div className="text-zinc-900 font-bold flex items-center gap-1">
+                                        <Landmark className="w-3 h-3 text-zinc-500 shrink-0" />
+                                        <span className="truncate max-w-[140px]">{s.vendor.bankName || "Swedish Bank"}</span>
+                                      </div>
+                                      {s.vendor.bankAccountNumber && (
+                                        <div className="text-[10px] text-zinc-500">
+                                          Clearing: <strong>{s.vendor.bankClearingNumber || "—"}</strong> / Konto: <strong>{s.vendor.bankAccountNumber}</strong>
+                                        </div>
+                                      )}
+                                      {s.vendor.swishNumber && (
+                                        <div className="text-[10px] text-purple-600">
+                                          Swish: {s.vendor.swishNumber}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-mono">
+                                      <AlertCircle className="w-3 h-3 text-amber-600" /> Missing Bank Info
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Settlement Status */}
+                                <td className="py-3.5 px-3 text-center">
+                                  {s.isSettled ? (
+                                    <div className="space-y-0.5">
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Settled
+                                      </span>
+                                      {s.settlementInfo?.reference && (
+                                        <div className="text-[9px] font-mono text-zinc-400">
+                                          {s.settlementInfo.reference}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                                      <Clock className="w-3 h-3 text-amber-600" /> Pending Payout
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Actions */}
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                    {/* Inspect Stall Button */}
+                                    <button
+                                      onClick={() => setInspectVendor(s.vendor)}
+                                      className="p-1.5 text-zinc-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all cursor-pointer"
+                                      title="Inspect Stall Details, Menu & Orders"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+
+                                    {/* Mark Settled Toggle Button */}
+                                    <button
+                                      onClick={() => toggleVendorSettlement(s.vendor.id)}
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                        s.isSettled
+                                          ? "bg-zinc-100 hover:bg-zinc-200 text-zinc-600"
+                                          : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                      }`}
+                                      title={s.isSettled ? "Mark as Pending again" : "Mark payout transfer completed"}
+                                    >
+                                      {s.isSettled ? (
+                                        <span>Undo</span>
+                                      ) : (
+                                        <>
+                                          <Check className="w-3 h-3" />
+                                          <span>Mark Paid</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+
+                              {/* Accordion: All Orders for THIS Stall */}
+                              {isExpanded && (
+                                <tr className="bg-emerald-50/40 border-b-2 border-emerald-300/70 animate-fadeIn">
+                                  <td colSpan={10} className="p-4 md:p-6">
+                                    <div className="bg-white rounded-2xl border-2 border-emerald-200 shadow-md p-4 md:p-5 space-y-4">
+                                      {/* Stall Orders Header */}
+                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-100 pb-3">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 rounded-2xl bg-orange-100 border border-orange-200 text-xl flex items-center justify-center shrink-0">
+                                            {s.vendor.logo || "🍲"}
+                                          </div>
+                                          <div>
+                                            <div className="flex items-center gap-2">
+                                              <h4 className="font-display font-black text-sm md:text-base text-zinc-950">
+                                                {s.vendor.name} — Customer Orders Ledger
+                                              </h4>
+                                              {s.vendor.stallNumber && (
+                                                <span className="text-[10px] font-mono font-bold bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded">
+                                                  {s.vendor.stallNumber}
+                                                </span>
+                                              )}
+                                            </div>
+                                            <p className="text-[11px] text-zinc-500 font-medium">
+                                              {s.eventName} • 3.5% VenueEat fee added per individual order (Vendor receives 100% of food price)
+                                            </p>
+                                          </div>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => setInspectVendor(s.vendor)}
+                                            className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-orange-200"
+                                          >
+                                            <Eye className="w-3.5 h-3.5 text-orange-600" />
+                                            <span>Inspect Stall (Menu & Profile)</span>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedVendorId(null)}
+                                            className="p-1.5 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                                            title="Close stall orders"
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Stall Financial Summary Banner */}
+                                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-zinc-50 p-3.5 rounded-xl text-xs font-mono border border-zinc-200">
+                                        <div>
+                                          <span className="text-[10px] text-zinc-400 font-bold uppercase block">Stall Orders</span>
+                                          <strong className="text-zinc-900 text-sm font-black">{s.ordersCount}</strong>
+                                        </div>
+                                        <div>
+                                          <span className="text-[10px] text-zinc-400 font-bold uppercase block">Food Sales (Vendor Cut)</span>
+                                          <strong className="text-zinc-900 text-sm font-black">{formatSEK(s.netPayout)} SEK</strong>
+                                        </div>
+                                        <div>
+                                          <span className="text-[10px] text-purple-600 font-bold uppercase block">+3.5% Platform Fee</span>
+                                          <strong className="text-purple-600 text-sm font-black">
+                                            +{formatSEK(s.platformFee)} SEK
+                                          </strong>
+                                        </div>
+                                        <div>
+                                          <span className="text-[10px] text-emerald-600 font-bold uppercase block">Total Swish Intake</span>
+                                          <strong className="text-emerald-600 text-sm font-black">{formatSEK(s.grossAmount)} SEK</strong>
+                                        </div>
+                                      </div>
+
+                                      {/* Orders Table for THIS Stall */}
+                                      {s.orders.length === 0 ? (
+                                        <div className="py-8 text-center text-zinc-400 text-xs font-medium bg-zinc-50 rounded-xl border border-dashed border-zinc-200">
+                                          No orders have been recorded for this stall yet.
+                                        </div>
+                                      ) : (
+                                        <div className="overflow-x-auto rounded-xl border border-zinc-200">
+                                          <table className="w-full text-left text-xs">
+                                            <thead>
+                                              <tr className="bg-zinc-100 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-600 border-b border-zinc-200">
+                                                <th className="py-2.5 px-3">Queue # & Time</th>
+                                                <th className="py-2.5 px-3">Customer</th>
+                                                <th className="py-2.5 px-3">Items Ordered</th>
+                                                <th className="py-2.5 px-3 text-right">Food Cost (SEK)</th>
+                                                <th className="py-2.5 px-3 text-right">+3.5% Platform Fee</th>
+                                                <th className="py-2.5 px-3 text-right">Total Bill (SEK)</th>
+                                                <th className="py-2.5 px-3 text-right">Vendor Payout (SEK)</th>
+                                                <th className="py-2.5 px-3 text-center">Status</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-zinc-100">
+                                              {s.orders.map((ord) => {
+                                                const foodCost = getOrderFoodCost(ord);
+                                                const fee = getOrderPlatformFee(ord);
+                                                const totalBill = getOrderTotalBill(ord);
+                                                const cut = getOrderVendorCut(ord);
+                                                return (
+                                                  <tr key={ord.id} className="hover:bg-zinc-50/70">
+                                                    <td className="py-2.5 px-3 font-mono font-bold text-zinc-900">
+                                                      <div className="flex items-center gap-1.5">
+                                                        <span>#Q-{ord.queueNumber}</span>
+                                                        <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1 rounded">Swish</span>
+                                                      </div>
+                                                      <div className="text-[10px] text-zinc-400 font-normal">{ord.timestamp || "Just now"}</div>
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                      <div className="font-bold text-zinc-900">{ord.customerName || "Festival Guest"}</div>
+                                                      {ord.customerPhone && <div className="text-[10px] text-zinc-400 font-mono">{ord.customerPhone}</div>}
+                                                    </td>
+                                                    <td className="py-2.5 px-3">
+                                                      <div className="space-y-0.5 max-w-xs">
+                                                        {ord.items && ord.items.length > 0 ? (
+                                                          ord.items.map((it, idx) => (
+                                                            <div key={idx} className="text-[11px] text-zinc-700 flex items-center gap-1">
+                                                              <span className="font-bold font-mono text-zinc-900">{it.quantity}x</span>
+                                                              <span>{it.menuItem?.name}</span>
+                                                              {it.selectedExtras && it.selectedExtras.length > 0 && (
+                                                                <span className="text-[9px] text-zinc-400">
+                                                                  (+{it.selectedExtras.map(e => e.name).join(", ")})
+                                                                </span>
+                                                              )}
+                                                            </div>
+                                                          ))
+                                                        ) : (
+                                                          <span className="text-zinc-400 italic">Itemized order saved</span>
+                                                        )}
+                                                      </div>
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-zinc-700">
+                                                      {formatSEK(foodCost)} SEK
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right font-mono font-bold text-purple-600">
+                                                      +{formatSEK(fee)} SEK
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right font-mono font-black text-zinc-900">
+                                                      {formatSEK(totalBill)} SEK
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-600">
+                                                      {formatSEK(cut)} SEK
+                                                    </td>
+                                                    <td className="py-2.5 px-3 text-center">
+                                                      <span className={`inline-block font-mono text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                                        ord.status === "Completed"
+                                                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                                          : ord.status === "Ready"
+                                                          ? "bg-purple-100 text-purple-800 border border-purple-300"
+                                                          : ord.status === "Preparing"
+                                                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                                          : "bg-blue-100 text-blue-800 border border-blue-300"
+                                                      }`}>
+                                                        {ord.status}
+                                                      </span>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : activeTab === "orders" ? (
+            /* MASTER ORDERS LEDGER CONSOLE */
+            <div className="space-y-6 animate-fadeIn">
+              {/* Master Orders Header Card */}
+              <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 text-white rounded-3xl p-6 border-2 border-zinc-800 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div className="space-y-1.5 max-w-2xl">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-500/20 text-blue-400 border border-blue-500/40 font-mono text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5 text-blue-400" /> Platform-Wide Master Orders Ledger
+                    </span>
+                    <span className="bg-zinc-800 text-zinc-300 font-mono text-[10px] px-2.5 py-0.5 rounded-full">
+                      {filteredMasterOrders.length} Orders Loaded
+                    </span>
+                  </div>
+
+                  <h3 className="font-display font-black text-xl md:text-2xl text-white tracking-tight">
+                    Multi-Stall Order Stream & Revenue Split
+                  </h3>
+
+                  <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                    Unified real-time feed of all mobile customer orders across all food stalls and festivals. Review order queue numbers, customer contacts, meal items, and the exact vendor food cut vs. platform commission breakdown.
+                  </p>
+                </div>
+              </div>
+
+              {/* Master Orders Financial Snapshot Bar */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white rounded-2xl p-4 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">Filtered Orders</div>
+                  <div className="font-mono font-black text-xl text-zinc-900">{filteredMasterOrders.length}</div>
+                  <p className="text-[10px] text-zinc-500 font-medium">Matching current filters</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">Gross Swish Total</div>
+                  <div className="font-mono font-black text-xl text-zinc-900">{formatSEK(masterOrdersGross)} <span className="text-xs text-zinc-500">SEK</span></div>
+                  <p className="text-[10px] text-emerald-600 font-bold">Total paid by customers</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">Total Vendor Cut</div>
+                  <div className="font-mono font-black text-xl text-blue-600">{formatSEK(masterOrdersVendorCut)} <span className="text-xs text-zinc-500">SEK</span></div>
+                  <p className="text-[10px] text-blue-600 font-bold">Food sales owed to stalls</p>
+                </div>
+
+                <div className="bg-white rounded-2xl p-4 border-2 border-zinc-200 shadow-xs space-y-1">
+                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">VenueEat Platform Fee</div>
+                  <div className="font-mono font-black text-xl text-orange-600">{formatSEK(masterOrdersPlatformCut)} <span className="text-xs text-zinc-500">SEK</span></div>
+                  <p className="text-[10px] text-orange-600 font-bold">3.5% fee calculated on each order</p>
+                </div>
+              </div>
+
+              {/* Orders Table */}
+              <div className="bg-white rounded-2xl border-2 border-zinc-200 shadow-xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-zinc-100/70 border-b border-zinc-200 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-600">
+                        <th className="py-3 px-4">Queue # & Time</th>
+                        <th className="py-3 px-4">Festival & Stall</th>
+                        <th className="py-3 px-4">Customer</th>
+                        <th className="py-3 px-4">Items Ordered</th>
+                        <th className="py-3 px-3 text-right">Food Cost (SEK)</th>
+                        <th className="py-3 px-3 text-right">+3.5% Fee Added</th>
+                        <th className="py-3 px-3 text-right">Total Bill (SEK)</th>
+                        <th className="py-3 px-3 text-right">Vendor Cut</th>
+                        <th className="py-3 px-3 text-center">Status</th>
+                        <th className="py-3 px-4 text-right">Inspect</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 font-sans">
+                      {filteredMasterOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-12 text-center text-zinc-400 font-medium">
+                            No orders found matching your search or filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredMasterOrders.map((ord) => {
+                          const orderVendor = allVendors.find(v => v.id === ord.vendorId);
+                          const orderEvent = events.find(e => e.id === (orderVendor?.eventId || "evt-001")) || events[0];
+                          const foodCost = getOrderFoodCost(ord);
+                          const platformCut = getOrderPlatformFee(ord);
+                          const totalBill = getOrderTotalBill(ord);
+                          const vendorCut = getOrderVendorCut(ord);
+
+                          return (
+                            <tr key={ord.id} className="hover:bg-zinc-50/80 transition-colors">
+                              {/* Queue # & Time */}
+                              <td className="py-3.5 px-4">
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-black text-sm text-zinc-950">
+                                      #Q-{ord.queueNumber}
+                                    </span>
+                                    <span className="text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                                      Swish
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500 font-mono">
+                                    {ord.timestamp || "Just now"}
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Festival & Stall */}
+                              <td className="py-3.5 px-4">
+                                <div className="space-y-0.5">
+                                  <div className="font-bold text-xs text-zinc-900 truncate max-w-[160px]">
+                                    {ord.vendorName}
+                                  </div>
+                                  <span className="inline-block bg-purple-50 text-purple-700 border border-purple-200/60 font-mono text-[9px] font-bold px-1.5 py-0.2 rounded truncate max-w-[160px]">
+                                    {orderEvent?.name || "Stockholm Festival"}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Customer */}
+                              <td className="py-3.5 px-4">
+                                <div className="space-y-0.5">
+                                  <div className="font-bold text-xs text-zinc-900">
+                                    {ord.customerName || "Festival Guest"}
+                                  </div>
+                                  {ord.customerPhone && (
+                                    <div className="text-[10px] text-zinc-500 font-mono">
+                                      {ord.customerPhone}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Items Ordered */}
+                              <td className="py-3.5 px-4">
+                                <div className="space-y-1 max-w-xs">
+                                  {ord.items && ord.items.length > 0 ? (
+                                    ord.items.map((it, idx) => (
+                                      <div key={idx} className="text-[11px] text-zinc-700 flex items-center gap-1">
+                                        <span className="font-bold font-mono text-zinc-900">{it.quantity}x</span>
+                                        <span>{it.menuItem?.name}</span>
+                                        {it.selectedExtras && it.selectedExtras.length > 0 && (
+                                          <span className="text-[9px] text-zinc-400">
+                                            (+{it.selectedExtras.map(e => e.name).join(", ")})
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span className="text-[11px] text-zinc-400 italic">Itemized details saved</span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Food Cost */}
+                              <td className="py-3.5 px-3 text-right font-mono font-bold text-zinc-700 text-xs">
+                                {formatSEK(foodCost)} <span className="text-[9px] text-zinc-400 font-sans font-normal">SEK</span>
+                              </td>
+
+                              {/* +3.5% Platform Fee Added */}
+                              <td className="py-3.5 px-3 text-right font-mono font-bold text-purple-600 text-xs">
+                                +{formatSEK(platformCut)} <span className="text-[9px] text-purple-400 font-sans font-normal">SEK</span>
+                              </td>
+
+                              {/* Total Bill SEK */}
+                              <td className="py-3.5 px-3 text-right font-mono font-black text-zinc-950 text-xs">
+                                {formatSEK(totalBill)} <span className="text-[9px] text-zinc-400 font-sans font-normal">SEK</span>
+                              </td>
+
+                              {/* Vendor Cut */}
+                              <td className="py-3.5 px-3 text-right font-mono font-black text-emerald-600 text-xs">
+                                {formatSEK(vendorCut)} <span className="text-[9px] text-emerald-400 font-sans font-normal">SEK</span>
+                              </td>
+
+                              {/* Status */}
+                              <td className="py-3.5 px-3 text-center">
+                                <span className={`inline-block font-mono text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
+                                  ord.status === "Completed"
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                    : ord.status === "Ready"
+                                    ? "bg-purple-100 text-purple-800 border border-purple-300"
+                                    : ord.status === "Preparing"
+                                    ? "bg-amber-100 text-amber-800 border border-amber-300"
+                                    : "bg-blue-100 text-blue-800 border border-blue-300"
+                                }`}>
+                                  {ord.status}
+                                </span>
+                              </td>
+
+                              {/* Inspect Stall */}
+                              <td className="py-3.5 px-4 text-right">
+                                {orderVendor ? (
+                                  <button
+                                    onClick={() => setInspectVendor(orderVendor)}
+                                    className="p-1.5 text-zinc-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+                                    title={`Inspect ${orderVendor.name} details`}
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                    <span className="text-[10px] font-mono font-bold">Stall</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-zinc-400 text-[10px]">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           ) : activeTab === "credentials" ? (
             /* DEDICATED EVENT ADMIN ACCESS & CREDENTIALS DIRECTORY */
@@ -2368,6 +3583,20 @@ Access instructions: Open the portal link, enter your Login ID & Password to man
             </p>
           </div>
         </div>
+      )}
+
+      {/* VENDOR STORE DETAIL MODAL (SUPER ADMIN STALL INSPECTION) */}
+      {inspectVendor && (
+        <AdminStoreDetailModal
+          vendor={inspectVendor}
+          orders={allOrders.filter(o => o.vendorId === inspectVendor.id)}
+          onClose={() => setInspectVendor(null)}
+          onApproveVendor={handleApproveVendor}
+          onSuspendVendor={handleSuspendVendor}
+          onUpdateVendorProfile={handleUpdateVendorProfile}
+          eventName={events.find(e => e.id === inspectVendor.eventId)?.name || "Stockholm Festival"}
+          currentEvent={events.find(e => e.id === inspectVendor.eventId)}
+        />
       )}
     </div>
   );

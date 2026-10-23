@@ -1428,12 +1428,12 @@ export const AttendeePage: React.FC = () => {
         onCustomerSwishNumberChange={setCustomerSwishNumber}
         initialPaymentMethod={checkoutPaymentMode}
         onPaymentSuccess={async (custName, vendorPaid, platformPaid, method) => {
-          const finalTotal = getCartTotal() || (Number(vendorPaid || 0) + Number(platformPaid || 0));
+          const rawFoodTotal = getCartTotal() || Number(vendorPaid || 0);
           const targetVendor = activeVendor || vendors[0];
           await confirmSwishPayment(
             custName || customerName || "Guest", 
             targetVendor, 
-            finalTotal, 
+            rawFoodTotal, 
             getCartItemsList(), 
             method || "Swish"
           );
