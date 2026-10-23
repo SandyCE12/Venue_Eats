@@ -1,6 +1,6 @@
 import https from "https";
 import crypto from "crypto";
-import { swishStore } from "./_swishStore";
+import { swishStore, saveSwishRecord } from "./_swishStore";
 
 export { swishStore as simulatedSwishStore };
 
@@ -94,8 +94,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const rawReferer = Array.isArray(req.headers?.referer) ? req.headers?.referer[0] : req.headers?.referer;
     const appUrl = returnUrl || rawReferer || process.env.APP_URL || "https://venue-eats.vercel.app";
 
-    // Track session in shared store
-    swishStore.set(instructionUUID, {
+    // Track session in shared store & Firestore
+    await saveSwishRecord({
       paymentId: instructionUUID,
       orderId: String(orderId),
       amount: parseFloat(amount).toFixed(2),
