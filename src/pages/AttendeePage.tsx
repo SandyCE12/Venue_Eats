@@ -114,6 +114,29 @@ export const AttendeePage: React.FC = () => {
     });
   }, [vendors, currentEvent?.id]);
 
+  // User's own orders (either matching logged in user or saved in local device storage)
+  const mySavedOrderIds = useMemo(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const parsed = JSON.parse(localStorage.getItem("venueeat_my_orders") || "[]");
+        return Array.isArray(parsed) ? new Set<string>(parsed) : new Set<string>();
+      }
+    } catch {}
+    return new Set<string>();
+  }, [orders]);
+
+  const myOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (user) {
+        if (o.userId && o.userId === user.uid) return true;
+        if (o.userEmail && user.email && o.userEmail.toLowerCase() === user.email.toLowerCase()) return true;
+      }
+      return mySavedOrderIds.has(o.id);
+    });
+  }, [orders, user, mySavedOrderIds]);
+
+  const displayHistoryOrders = myOrders.length > 0 ? myOrders : orders;
+
   const [stallSearchQuery, setStallSearchQuery] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -749,9 +772,99 @@ export const AttendeePage: React.FC = () => {
         </div>
       </div>
 
+      {/* ACTIVE ORDER LIVE TRACKER BANNER (WHEN BROWSING MENU / MAP) */}
+      {activeTab !== "orders" && currentOrder && currentOrder.status !== "Completed" && (
+        <div className="bg-gradient-to-r from-emerald-950 via-zinc-950 to-emerald-950 border-2 border-emerald-500/60 text-white rounded-3xl p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn text-left">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shrink-0 shadow-xs">
+              <Ticket className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-black text-emerald-400 text-sm">
+                  Active Order #{currentOrder.queueNumber}
+                </span>
+                <span className="text-[10px] font-mono font-black bg-emerald-500 text-zinc-950 px-2.5 py-0.5 rounded-full uppercase">
+                  {currentOrder.status}
+                </span>
+              </div>
+              <p className="text-xs text-zinc-300 font-medium mt-0.5">
+                {currentOrder.vendorName} • {currentOrder.items.length} item{currentOrder.items.length > 1 ? "s" : ""} • Preparing in kitchen
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTab("orders");
+              setOrdersSubTab("live");
+            }}
+            className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-zinc-950 font-display font-black text-xs px-4 py-2.5 rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 shrink-0"
+          >
+            <span>View Pickup Ticket</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* SIGNED-IN USER PAST ORDERS HOME BANNER (WHEN BROWSING MENU) */}
+      {activeTab === "menu" && (user || myOrders.length > 0) && (
+        <div className="bg-white rounded-2xl border border-zinc-200 p-4 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 font-black text-lg">
+              🧾
+            </div>
+            <div>
+              <p className="text-xs font-black text-zinc-900">
+                {user ? `Hej ${user.displayName?.split(" ")[0] || "Foodie"}!` : "Your Festival Orders"}
+              </p>
+              <p className="text-[11px] text-zinc-500 font-medium">
+                {myOrders.length > 0
+                  ? `You have ${myOrders.length} past order${myOrders.length > 1 ? "s" : ""} recorded in this festival`
+                  : "View your past receipts and pickup tickets anytime"}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setActiveTab("orders");
+              setOrdersSubTab("history");
+            }}
+            className="w-full sm:w-auto px-4 py-2 bg-zinc-900 hover:bg-zinc-800 active:scale-95 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 shadow-xs"
+          >
+            <History className="w-3.5 h-3.5 text-orange-400" />
+            <span>View Past Orders ({myOrders.length})</span>
+            <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+          </button>
+        </div>
+      )}
+
       {/* RENDER CONTENT BASED ON ACTIVE TAB */}
       {activeTab === "orders" ? (
         <div className="bg-white rounded-3xl border border-zinc-200 p-6 md:p-8 shadow-xs text-left max-w-3xl mx-auto space-y-6">
+          {/* Back to Menu & Stalls Navigation Header Button */}
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+            <button
+              onClick={() => {
+                setActiveTab("menu");
+                setSelectedVendorStallId(null);
+              }}
+              className="inline-flex items-center gap-2 bg-orange-50 hover:bg-orange-100 active:scale-95 text-orange-700 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border border-orange-200 shadow-2xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-orange-600" />
+              <span>Back to Food Stalls & Menu</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("menu");
+                setSelectedVendorStallId(null);
+              }}
+              className="text-xs text-zinc-500 hover:text-zinc-900 font-bold flex items-center gap-1 cursor-pointer"
+            >
+              <Utensils className="w-3.5 h-3.5 text-orange-500" />
+              <span className="hidden sm:inline">Explore More Food</span>
+            </button>
+          </div>
+
           {/* Sub-header with toggle between Live Ticket and Order History */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-150 pb-4">
             <div className="flex items-center gap-2">
@@ -780,7 +893,7 @@ export const AttendeePage: React.FC = () => {
                     : "text-zinc-600 hover:text-zinc-900"
                 }`}
               >
-                Past Orders ({orders.length})
+                {user ? "My Orders" : "Past Orders"} ({displayHistoryOrders.length})
               </button>
             </div>
           </div>
@@ -852,16 +965,26 @@ export const AttendeePage: React.FC = () => {
                   </div>
                 )}
 
-                {orders.length > 1 && (
-                  <div className="text-center pt-2">
-                    <button
-                      onClick={() => setOrdersSubTab("history")}
-                      className="text-xs font-bold text-zinc-500 hover:text-zinc-900 underline cursor-pointer"
-                    >
-                      View all {orders.length} orders in history →
-                    </button>
-                  </div>
-                )}
+                {/* Return to Menu / Order More Food Action Bar */}
+                <div className="pt-3 border-t border-zinc-150 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <button
+                    onClick={() => {
+                      setActiveTab("menu");
+                      setSelectedVendorStallId(null);
+                    }}
+                    className="w-full sm:w-auto flex-1 bg-zinc-900 hover:bg-zinc-800 active:scale-98 text-white font-display font-black text-xs py-3 px-4 rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Utensils className="w-4 h-4 text-orange-400" />
+                    <span>← Return to Menu & Add More Food</span>
+                  </button>
+                  <button
+                    onClick={() => setOrdersSubTab("history")}
+                    className="w-full sm:w-auto bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-bold py-3 px-4 rounded-2xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-200"
+                  >
+                    <History className="w-3.5 h-3.5 text-zinc-500" />
+                    <span>Past Receipts ({displayHistoryOrders.length})</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center space-y-4">
@@ -873,7 +996,10 @@ export const AttendeePage: React.FC = () => {
                   </p>
                 </div>
                 <button
-                  onClick={() => setActiveTab("menu")}
+                  onClick={() => {
+                    setActiveTab("menu");
+                    setSelectedVendorStallId(null);
+                  }}
                   className="bg-orange-500 text-white text-xs font-bold px-5 py-2.5 rounded-2xl shadow-md cursor-pointer hover:bg-orange-600 transition-all"
                 >
                   Browse Festival Food
@@ -882,11 +1008,48 @@ export const AttendeePage: React.FC = () => {
             )
           ) : (
             /* HISTORY VIEW */
-            orders.length === 0 ? (
-              <p className="text-sm text-zinc-500 italic py-8 text-center">No previous orders found for this session.</p>
+            displayHistoryOrders.length === 0 ? (
+              <div className="py-12 text-center space-y-4">
+                <History className="w-12 h-12 text-zinc-300 mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="font-display font-black text-base text-zinc-800">
+                    {user ? "No Past Orders on this Account" : "No Past Orders Recorded"}
+                  </h4>
+                  <p className="text-xs text-zinc-500 max-w-sm mx-auto font-medium">
+                    {user
+                      ? `Hej ${user.displayName || "there"}, you haven't placed any orders with this account yet.`
+                      : "Order delicious food from festival stalls to view your receipts and queue numbers here!"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setActiveTab("menu");
+                    setSelectedVendorStallId(null);
+                  }}
+                  className="bg-orange-500 text-white text-xs font-bold px-5 py-2.5 rounded-2xl shadow-md cursor-pointer hover:bg-orange-600 transition-all inline-flex items-center gap-1.5"
+                >
+                  <Utensils className="w-3.5 h-3.5" />
+                  <span>Browse Festival Food</span>
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
-                {orders.map(o => (
+                <div className="flex items-center justify-between pb-1 text-xs text-zinc-500 font-medium">
+                  <span>
+                    {user ? `Showing your orders (${displayHistoryOrders.length})` : `All festival orders (${displayHistoryOrders.length})`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setActiveTab("menu");
+                      setSelectedVendorStallId(null);
+                    }}
+                    className="text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>Order More Food</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {displayHistoryOrders.map(o => (
                   <div key={o.id} className="p-4 rounded-2xl border border-zinc-200 bg-zinc-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <div className="flex items-center gap-2">
