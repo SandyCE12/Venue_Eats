@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Store, 
@@ -33,6 +33,7 @@ export const Navbar: React.FC = () => {
     attendeeTab,
     setAttendeeTab,
     setSelectedVendorStallId,
+    ordersSubTab,
     setOrdersSubTab,
     showCartDrawer,
     setShowCartDrawer,
@@ -54,6 +55,27 @@ export const Navbar: React.FC = () => {
 
   const totalCartQty = cartEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const isMapUploaded = Boolean(eventMapUrl && eventMapUrl.trim().length > 0);
+
+  // User's personal orders count
+  const mySavedOrderIds = useMemo(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const parsed = JSON.parse(localStorage.getItem("venueeat_my_orders") || "[]");
+        return Array.isArray(parsed) ? new Set<string>(parsed) : new Set<string>();
+      }
+    } catch {}
+    return new Set<string>();
+  }, [orders]);
+
+  const userOrdersCount = useMemo(() => {
+    return orders.filter(o => {
+      if (user) {
+        if (o.userId && o.userId === user.uid) return true;
+        if (o.userEmail && user.email && o.userEmail.toLowerCase() === user.email.toLowerCase()) return true;
+      }
+      return mySavedOrderIds.has(o.id);
+    }).length;
+  }, [orders, user, mySavedOrderIds]);
 
   return (
     <>
@@ -179,8 +201,22 @@ export const Navbar: React.FC = () => {
             </Link>
           </nav>
 
-          {/* User Auth Control & Desktop Quick Cart */}
+          {/* User Auth Control, My Orders & Desktop Quick Navigation */}
           <div className="flex items-center gap-2">
+            {location.pathname === "/" && attendeeTab === "orders" && (
+              <button
+                onClick={() => {
+                  setAttendeeTab("menu");
+                  setSelectedVendorStallId(null);
+                }}
+                className="hidden sm:inline-flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                title="Return to Food Menu & Stalls"
+              >
+                <Utensils className="w-3.5 h-3.5 text-orange-600" />
+                <span>Back to Menu</span>
+              </button>
+            )}
+
             {location.pathname === "/" && (
               <button
                 onClick={() => setShowCartDrawer(true)}
@@ -197,6 +233,27 @@ export const Navbar: React.FC = () => {
 
             {user ? (
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setAttendeeTab("orders");
+                    setOrdersSubTab("history");
+                    if (location.pathname !== "/") navigate("/");
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border shadow-2xs ${
+                    attendeeTab === "orders" && ordersSubTab === "history"
+                      ? "bg-zinc-900 text-white border-zinc-900"
+                      : "bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200"
+                  }`}
+                  title="View My Past Orders & Receipts"
+                >
+                  <Ticket className="w-3.5 h-3.5 text-orange-500" />
+                  <span className="hidden sm:inline">My Orders</span>
+                  {userOrdersCount > 0 && (
+                    <span className="bg-orange-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                      {userOrdersCount}
+                    </span>
+                  )}
+                </button>
                 <img 
                   src={user.photoURL || undefined} 
                   alt={user.displayName || "User"} 
@@ -212,13 +269,32 @@ export const Navbar: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <button
-                onClick={handleSignIn}
-                className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-display font-black text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs min-h-[44px]"
-              >
-                <LogIn className="w-4 h-4" /> 
-                <span>Sign In</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {userOrdersCount > 0 && (
+                  <button
+                    onClick={() => {
+                      setAttendeeTab("orders");
+                      setOrdersSubTab("history");
+                      if (location.pathname !== "/") navigate("/");
+                    }}
+                    className="flex items-center gap-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-800 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border border-zinc-200 shadow-2xs"
+                    title="View My Orders"
+                  >
+                    <Ticket className="w-3.5 h-3.5 text-orange-500" />
+                    <span className="hidden sm:inline">My Orders</span>
+                    <span className="bg-orange-500 text-white font-mono text-[10px] font-black px-1.5 py-0.2 rounded-full">
+                      {userOrdersCount}
+                    </span>
+                  </button>
+                )}
+                <button
+                  onClick={handleSignIn}
+                  className="bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-display font-black text-xs px-3.5 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-xs min-h-[44px]"
+                >
+                  <LogIn className="w-4 h-4" /> 
+                  <span>Sign In</span>
+                </button>
+              </div>
             )}
           </div>
         </div>

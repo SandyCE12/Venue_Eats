@@ -119,6 +119,8 @@ export interface Order {
   platformSwishPaid?: number;
   fcmToken?: string;
   customerPhone?: string;
+  userId?: string;
+  userEmail?: string;
 }
 
 export type EventStatus = "Live" | "Scheduled" | "Completed";

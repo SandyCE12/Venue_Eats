@@ -530,7 +530,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       estimatedPrepTimeMinutes: 8,
       fcmToken: (typeof window !== "undefined" ? localStorage.getItem("venueeat_fcm_token") : null) || undefined,
       customerPhone: (typeof window !== "undefined" ? localStorage.getItem("venueeat_customer_swish") : null) || undefined,
+      userId: user?.uid || undefined,
+      userEmail: user?.email || undefined,
     };
+
+    try {
+      if (typeof window !== "undefined") {
+        const mySaved = JSON.parse(localStorage.getItem("venueeat_my_orders") || "[]");
+        if (Array.isArray(mySaved)) {
+          localStorage.setItem("venueeat_my_orders", JSON.stringify([newOrderObj.id, ...mySaved.filter(id => id !== newOrderObj.id)]));
+        }
+      }
+    } catch {}
 
     try {
       await setDoc(doc(db, "orders", newOrderObj.id), cleanUndefined(newOrderObj));
