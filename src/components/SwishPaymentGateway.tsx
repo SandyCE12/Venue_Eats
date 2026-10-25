@@ -304,32 +304,23 @@ export default function SwishPaymentGateway({
           "Swish"
         );
         return;
+      } else if (["DECLINED", "CANCELLED"].includes(secondCheck.status)) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setSwishError(`Payment was ${secondCheck.status.toLowerCase()} in Swish. Please try again.`);
+        setStep("details");
+        return;
       }
 
-      // 3. Immediate completion: Customer confirmed payment in Swish app — finalize order ticket
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      setStep("success");
-      onPaymentSuccess(
-        customerName || "Guest User",
-        vendorShare,
-        platformFee,
-        "Swish"
+      // 3. Payment not confirmed yet by Swish — do not allow bypass without payment
+      setVerifyNotice(
+        "Payment has not been confirmed by Swish yet. Please approve the payment in your Swish app with BankID first."
       );
     } catch {
-      // Network glitch fallback: finalize immediately so customer is never stuck
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      setStep("success");
-      onPaymentSuccess(
-        customerName || "Guest User",
-        vendorShare,
-        platformFee,
-        "Swish"
+      setVerifyNotice(
+        "Could not verify status with Swish servers. Please check your internet connection or Swish app and try again."
       );
     } finally {
       setIsVerifyingWithSwish(false);
