@@ -1,8 +1,28 @@
 import https from "https";
 import crypto from "crypto";
-import { swishStore, saveSwishRecord } from "./_swishStore";
+
+export interface SwishPaymentRecord {
+  paymentId: string;
+  orderId: string;
+  amount: string;
+  status: "CREATED" | "PAID" | "DECLINED" | "CANCELLED" | "ERROR";
+  createdAt: number;
+  datePaid?: string;
+  payerAlias?: string;
+}
+
+declare global {
+  var __swishPaymentStore: Map<string, SwishPaymentRecord> | undefined;
+}
+
+const swishStore: Map<string, SwishPaymentRecord> =
+  globalThis.__swishPaymentStore || (globalThis.__swishPaymentStore = new Map<string, SwishPaymentRecord>());
 
 export { swishStore as simulatedSwishStore };
+
+function saveSwishRecord(record: SwishPaymentRecord): void {
+  swishStore.set(record.paymentId, record);
+}
 
 interface ApiRequest {
   method?: string;
@@ -16,10 +36,11 @@ interface ApiResponse {
   end: () => void;
 }
 
+const env = (process.env.SWISH_ENVIRONMENT || "production").toLowerCase().trim();
 const SWISH_HOST =
-  process.env.SWISH_ENVIRONMENT === "production"
-    ? "cpc.getswish.net"
-    : "mss.cpc.getswish.net";
+  env === "test" || env === "mss" || env === "sandbox"
+    ? "mss.cpc.getswish.net"
+    : "cpc.getswish.net";
 
 function createPaymentRequest(
   instructionUUID: string,
@@ -82,7 +103,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const certB64 = process.env.SWISH_CLIENT_CERT_BASE64;
     const keyB64 = process.env.SWISH_CLIENT_KEY_BASE64;
     const merchantNumber = (process.env.SWISH_MERCHANT_NUMBER || "1230197665").replace(/[\s\-\+]/g, "");
-    const callbackUrl = process.env.SWISH_CALLBACK_URL;
+    const callbackUrl = process.env.SWISH_CALLBACK_URL || "https://venue-eats.vercel.app/api/swish-callback";
 
     // UUID must be uppercase, no dashes, exactly 32 hex chars
     const instructionUUID = crypto
@@ -94,8 +115,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const rawReferer = Array.isArray(req.headers?.referer) ? req.headers?.referer[0] : req.headers?.referer;
     const appUrl = returnUrl || rawReferer || process.env.APP_URL || "https://venue-eats.vercel.app";
 
-    // Track session in shared store & Firestore
-    await saveSwishRecord({
+    // Track session in memory store
+    saveSwishRecord({
       paymentId: instructionUUID,
       orderId: String(orderId),
       amount: parseFloat(amount).toFixed(2),

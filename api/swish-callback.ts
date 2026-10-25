@@ -1,4 +1,23 @@
-import { swishStore, saveSwishRecord } from "./_swishStore";
+export interface SwishPaymentRecord {
+  paymentId: string;
+  orderId: string;
+  amount: string;
+  status: "CREATED" | "PAID" | "DECLINED" | "CANCELLED" | "ERROR";
+  createdAt: number;
+  datePaid?: string;
+  payerAlias?: string;
+}
+
+declare global {
+  var __swishPaymentStore: Map<string, SwishPaymentRecord> | undefined;
+}
+
+const swishStore: Map<string, SwishPaymentRecord> =
+  globalThis.__swishPaymentStore || (globalThis.__swishPaymentStore = new Map<string, SwishPaymentRecord>());
+
+function saveSwishRecord(record: SwishPaymentRecord): void {
+  swishStore.set(record.paymentId, record);
+}
 
 interface ApiRequest {
   method?: string;
@@ -13,7 +32,6 @@ interface ApiResponse {
 /**
  * Swish Handel server-to-server callback.
  * Swish calls this URL after a payment is PAID, DECLINED, or CANCELLED.
- * We store the status in Firestore + swishStore so any serverless instance polling /api/swish-status detects it immediately.
  */
 export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== "POST") {
@@ -28,7 +46,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
     if (id) {
       const existing = swishStore.get(id);
-      const record = {
+      const record: SwishPaymentRecord = {
         paymentId: id,
         orderId: payeePaymentReference || existing?.orderId || id,
         amount: String(amount || existing?.amount || "0"),
@@ -38,7 +56,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         payerAlias,
       };
 
-      await saveSwishRecord(record);
+      saveSwishRecord(record);
       console.log(`[Swish Callback] Persisted paymentId=${id} with status=${status || "PAID"}`);
     }
   } catch (err) {
