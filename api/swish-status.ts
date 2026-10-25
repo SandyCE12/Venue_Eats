@@ -1,5 +1,29 @@
 import https from "https";
-import { swishStore, getSwishRecord, saveSwishRecord } from "./_swishStore";
+
+export interface SwishPaymentRecord {
+  paymentId: string;
+  orderId: string;
+  amount: string;
+  status: "CREATED" | "PAID" | "DECLINED" | "CANCELLED" | "ERROR";
+  createdAt: number;
+  datePaid?: string;
+  payerAlias?: string;
+}
+
+declare global {
+  var __swishPaymentStore: Map<string, SwishPaymentRecord> | undefined;
+}
+
+const swishStore: Map<string, SwishPaymentRecord> =
+  globalThis.__swishPaymentStore || (globalThis.__swishPaymentStore = new Map<string, SwishPaymentRecord>());
+
+function saveSwishRecord(record: SwishPaymentRecord): void {
+  swishStore.set(record.paymentId, record);
+}
+
+function getSwishRecord(paymentId: string): SwishPaymentRecord | null {
+  return swishStore.get(paymentId) || null;
+}
 
 interface ApiRequest {
   method?: string;
@@ -13,10 +37,11 @@ interface ApiResponse {
   end: () => void;
 }
 
+const env = (process.env.SWISH_ENVIRONMENT || "production").toLowerCase().trim();
 const SWISH_HOST =
-  process.env.SWISH_ENVIRONMENT === "production"
-    ? "cpc.getswish.net"
-    : "mss.cpc.getswish.net";
+  env === "test" || env === "mss" || env === "sandbox"
+    ? "mss.cpc.getswish.net"
+    : "cpc.getswish.net";
 
 function getPaymentStatus(
   paymentId: string,
@@ -68,8 +93,8 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: "paymentId query param required" });
     }
 
-    // 1. Check shared store and Firestore for already confirmed payment
-    const cachedSession = await getSwishRecord(paymentId);
+    // 1. Check shared store for already confirmed payment
+    const cachedSession = getSwishRecord(paymentId);
     if (cachedSession && cachedSession.status === "PAID") {
       return res.status(200).json({
         status: "PAID",
@@ -95,7 +120,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
           // Swish CPC statuses: CREATED | PAID | DECLINED | ERROR | CANCELLED
           const status = data.status || "CREATED";
 
-          const updatedRecord = {
+          const updatedRecord: SwishPaymentRecord = {
             paymentId,
             orderId: data.payeePaymentReference || cachedSession?.orderId || paymentId,
             amount: String(data.amount || cachedSession?.amount || "0"),
@@ -105,7 +130,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
             payerAlias: data.payerAlias || cachedSession?.payerAlias,
           };
 
-          await saveSwishRecord(updatedRecord as any);
+          saveSwishRecord(updatedRecord);
 
           console.log(`[Swish Status] Live CPC query for ${paymentId}: ${status}`);
 
@@ -124,7 +149,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     }
 
     // 3. Fallback to session store status or default CREATED
-    const currentSession = (await getSwishRecord(paymentId)) || swishStore.get(paymentId);
+    const currentSession = getSwishRecord(paymentId) || swishStore.get(paymentId);
     return res.status(200).json({
       status: currentSession?.status || "CREATED",
       amount: currentSession?.amount || "0.00",

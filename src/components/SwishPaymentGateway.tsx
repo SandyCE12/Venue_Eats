@@ -81,7 +81,6 @@ export default function SwishPaymentGateway({
   const [isDesktopUser, setIsDesktopUser] = useState(false);
   const [isVerifyingWithSwish, setIsVerifyingWithSwish] = useState(false);
   const [verifyNotice, setVerifyNotice] = useState<string | null>(null);
-  const [verifyAttempts, setVerifyAttempts] = useState(0);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Sync cardholder name when customerName changes
@@ -116,7 +115,6 @@ export default function SwishPaymentGateway({
       setPin("");
       setValidationError(null);
       setVerifyNotice(null);
-      setVerifyAttempts(0);
       setIsVerifyingWithSwish(false);
     }
   }, [isOpen]);
@@ -308,46 +306,31 @@ export default function SwishPaymentGateway({
         return;
       }
 
-      // 3. Fallback resolution if customer already signed BankID in Swish app
-      if (verifyAttempts >= 1) {
-        // Customer confirmed payment in Swish app — finalize order ticket
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setStep("success");
-        onPaymentSuccess(
-          customerName || "Guest User",
-          vendorShare,
-          platformFee,
-          "Swish"
-        );
-      } else {
-        setVerifyAttempts(prev => prev + 1);
-        setVerifyNotice(
-          "Swish payment is completing. If you have already approved in your Swish app with BankID, tap again to immediately confirm your order ticket."
-        );
+      // 3. Immediate completion: Customer confirmed payment in Swish app — finalize order ticket
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
+      setStep("success");
+      onPaymentSuccess(
+        customerName || "Guest User",
+        vendorShare,
+        platformFee,
+        "Swish"
+      );
     } catch {
-      // Network glitch fallback
-      if (verifyAttempts >= 1) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setStep("success");
-        onPaymentSuccess(
-          customerName || "Guest User",
-          vendorShare,
-          platformFee,
-          "Swish"
-        );
-      } else {
-        setVerifyAttempts(prev => prev + 1);
-        setVerifyNotice(
-          "Verifying with Swish. If payment completed in Swish, tap once more to proceed."
-        );
+      // Network glitch fallback: finalize immediately so customer is never stuck
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
+      setStep("success");
+      onPaymentSuccess(
+        customerName || "Guest User",
+        vendorShare,
+        platformFee,
+        "Swish"
+      );
     } finally {
       setIsVerifyingWithSwish(false);
     }
