@@ -130,8 +130,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
         const cert = Buffer.from(certB64, "base64").toString("utf-8");
         const key = Buffer.from(keyB64, "base64").toString("utf-8");
 
+        // Swish API strictly requires payeePaymentReference to be ^[a-zA-Z0-9-]{1,35}$
+        const sanitizedOrderId = String(orderId || "").replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 35);
+
         const swishPayload = {
-          payeePaymentReference: String(orderId).slice(0, 35),
+          payeePaymentReference: sanitizedOrderId,
           callbackUrl,
           payeeAlias: merchantNumber,
           currency: "SEK",
