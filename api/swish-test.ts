@@ -64,7 +64,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
   const instructionUUID = crypto.randomUUID().replace(/-/g, "").toUpperCase();
   const testPayload = {
-    payeePaymentReference: "DIAG_TEST_" + Date.now().toString().slice(-6),
+    payeePaymentReference: "DIAGTEST" + Date.now().toString().slice(-6),
     callbackUrl,
     payeeAlias: merchantNumber,
     currency: "SEK",
