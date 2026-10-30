@@ -169,5 +169,9 @@ export function isMobileDevice(): boolean {
  * Must be unique per payment attempt — we use timestamp + random.
  */
 export function generateOrderRef(): string {
-  return `ve_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  // Swish API (Bankgirot) strictly requires payeePaymentReference to be 1-35 characters
+  // matching regex ^[a-zA-Z0-9-]{1,35}$ (underscores "_" are prohibited).
+  const timestamp = Date.now().toString();
+  const rand = Math.random().toString(36).substring(2, 7);
+  return `ve-${timestamp}-${rand}`.slice(0, 35);
 }
