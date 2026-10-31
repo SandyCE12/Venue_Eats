@@ -40,6 +40,7 @@ interface SwishPaymentGatewayProps {
   initialPaymentMethod?: "swish" | "card" | "applepay";
   customerSwishNumber?: string;
   onCustomerSwishNumberChange?: (num: string) => void;
+  onDoneViewOrderTicket?: () => void;
 }
 
 type PaymentStep = "details" | "bankid" | "signing" | "success";
@@ -58,6 +59,7 @@ export default function SwishPaymentGateway({
   initialPaymentMethod = "swish",
   customerSwishNumber = "",
   onCustomerSwishNumberChange,
+  onDoneViewOrderTicket,
 }: SwishPaymentGatewayProps) {
   const [step, setStep] = useState<PaymentStep>("details");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(initialPaymentMethod || "swish");
@@ -390,6 +392,9 @@ export default function SwishPaymentGateway({
 
   const handleFinishPayment = () => {
     onClose();
+    if (onDoneViewOrderTicket) {
+      onDoneViewOrderTicket();
+    }
   };
 
   return createPortal(
@@ -529,7 +534,7 @@ export default function SwishPaymentGateway({
                     value={customerName}
                     onChange={(e) => onCustomerNameChange(e.target.value)}
                     className="w-full bg-white border-2 border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-850 focus:outline-none focus:border-sky-500 font-bold transition-all"
-                    placeholder="Enter your name..."
+                    placeholder="Enter your name"
                     id="swish-input-customer-name"
                   />
                   <p className="text-[8.5px] text-zinc-400 font-semibold leading-relaxed">
@@ -550,7 +555,7 @@ export default function SwishPaymentGateway({
                       setValidationError(null);
                     }}
                     className="w-full bg-white border-2 border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-850 focus:outline-none focus:border-sky-500 font-mono font-bold transition-all"
-                    placeholder="070 123 45 67"
+                    placeholder="Enter your swish number"
                     id="swish-input-customer-phone"
                   />
                   <p className="text-[8.5px] text-zinc-400 font-semibold leading-relaxed">
@@ -853,16 +858,6 @@ export default function SwishPaymentGateway({
                     )}
                   </button>
 
-                  {/* Primary CTA for desktop / simulator */}
-                  <button
-                    type="button"
-                    onClick={handleApproveSwishDirectly}
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-zinc-300 font-display font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
-                  >
-                    <Fingerprint className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Approve & Sign with BankID (Test Simulation)</span>
-                  </button>
-
                   <div className="flex items-center gap-2 justify-center">
                     <Loader2 className="w-3 h-3 text-sky-400 animate-spin" />
                     <p className="text-[10px] text-zinc-400 font-mono">
@@ -921,16 +916,6 @@ export default function SwishPaymentGateway({
                         <span>I Have Completed Payment in Swish</span>
                       </>
                     )}
-                  </button>
-
-                  {/* Direct approval fallback for simulator / mobile testing */}
-                  <button
-                    type="button"
-                    onClick={handleApproveSwishDirectly}
-                    className="w-full bg-zinc-800/80 hover:bg-zinc-700 active:scale-95 text-zinc-300 font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 text-[11px] cursor-pointer border border-zinc-700"
-                  >
-                    <Fingerprint className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Approve & Sign with BankID (Test Simulation)</span>
                   </button>
 
                   <div className="flex items-center gap-2 justify-center">
