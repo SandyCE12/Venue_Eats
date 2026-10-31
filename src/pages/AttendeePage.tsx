@@ -1505,6 +1505,8 @@ export const AttendeePage: React.FC = () => {
             method || "Swish"
           );
           setCartEntries([]);
+        }}
+        onDoneViewOrderTicket={() => {
           setActiveTab("orders");
           setOrdersSubTab("live");
         }}

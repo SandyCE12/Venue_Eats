@@ -132,7 +132,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeVendorId, setActiveVendorId] = useState<string>("v1");
   const [customerCart, setCustomerCart] = useState<{ [itemId: string]: number }>({});
-  const [customerName, setCustomerName] = useState("Lars");
+  const [customerName, setCustomerName] = useState("");
   const [activeTable, setActiveTable] = useState<string | null>(null);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [managedEvents, setManagedEvents] = useState<ManagedEvent[]>(() => {

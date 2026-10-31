@@ -544,20 +544,6 @@ export const CartPopoutModal: React.FC<CartPopoutModalProps> = ({
                   {isSigningIn ? "Signing in with Google..." : "Continue with Google"}
                 </span>
               </button>
-
-              <div className="text-center pt-1 border-t border-zinc-100">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSignInPrompt(false);
-                    onClose();
-                    onProceedToSwish();
-                  }}
-                  className="text-xs text-zinc-400 hover:text-zinc-600 font-semibold underline cursor-pointer"
-                >
-                  Or continue as guest
-                </button>
-              </div>
             </div>
           </div>
         )}
